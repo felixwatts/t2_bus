@@ -1,0 +1,32 @@
+[package]
+name = "bus"
+version = "0.1.0"
+authors = ["Felix Watts <felixwatts@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde_json = "1.0.64"
+byteorder = "1.4.2"
+log="0.4.14"
+regex = "1.4.3"
+lazy_static = "1.4.0"
+structopt = "0.3.21"
+futures-util="0.3.5"
+tokio = { version = "1.2.0", features = ["full", "rt"] } # TODO reduce features
+serde = { version = "1.0", features = ["derive"] }
+serde_cbor = "0.11.1"
+serde_derive = "1.0.123"
+tokio-util = { version = "0.6.3", features = ["codec"] }
+bytes = "1.0.1"
+futures-sink = "0.3.13"
+futures-core="0.3.13"
+futures="0.3.13"
+ansi_term = "0.12.1"
+flate2 = "1.0.20"
+thiserror = "1.0.24"
+
+[dev-dependencies]
+uuid = { version = "0.8.2", features = ["v4"] }
+tempfile = "3.2.0"
