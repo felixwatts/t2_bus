@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
-use bus::serve_bus_in_process;
-use bus::Client;
-use bus::PublishProtocol;
+use t2_bus::{serve_bus_in_process, Client, PublishProtocol, BusResult};
 
 // Define a protocol message type
 #[derive(Clone, Deserialize, Serialize, Debug)]
@@ -16,7 +14,7 @@ impl PublishProtocol for HelloProtocol{
 }
 
 #[tokio::main]
-async fn main() -> bus::BusResult<()> {
+async fn main() -> BusResult<()> {
     // Start a bus server using the in-process memory transport
     let(mut listener, _stopper, _server_joiner) = serve_bus_in_process()?;
 
