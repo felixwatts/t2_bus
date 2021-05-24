@@ -6,7 +6,7 @@ use tokio::{join, task::JoinHandle};
 use super::{
     protocol::{PublishProtocol, RequestProtocol}
 };
-use crate::transport::{unix_socket_transport::listen};
+use crate::transport::{unix_socket_transport::{UnixBusStopper, listen}};
 
 use crate::{client::Client, err::BusResult};
 
@@ -36,17 +36,14 @@ pub fn unique_addr() -> std::path::PathBuf {
     std::path::PathBuf::from(format!("/tmp/{}", uuid::Uuid::new_v4()))
 }
 
-async fn setup() -> (Client, Client) {
-    let mut server = crate::server::Core::new();
+async fn setup() -> (Client, Client, UnixBusStopper) {
     let addr = unique_addr();
-    let (_stopper, _join_handle) = listen(&addr, server.get_task_sender()).unwrap();
-
-    server.spawn().unwrap();
+    let stopper = crate::transport::unix_socket_transport::listen_and_serve(&addr).unwrap();
 
     let (client_1, _) = Client::new_unix(&addr).await.unwrap();
     let (client_2, _) = Client::new_unix(&addr).await.unwrap();
 
-    (client_1, client_2)
+    (client_1, client_2, stopper)
 }
 
 async fn setup_local() -> (
@@ -84,7 +81,7 @@ async fn test_subscribe_publish_local() {
 
 #[tokio::test]
 async fn test_subscribe_publish() {
-    let (mut client_1, mut client_2) = setup().await;
+    let (mut client_1, mut client_2, _stopper) = setup().await;
 
     let mut rx = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
 
@@ -100,7 +97,7 @@ async fn test_subscribe_publish() {
 
 #[tokio::test]
 async fn test_subscribe_publish_empty_topic() {
-    let (mut client_1, mut client_2) = setup().await;
+    let (mut client_1, mut client_2, _stopper) = setup().await;
 
     let mut rx = client_1.subscribe::<TestPub>("").await.unwrap();
 
@@ -113,7 +110,7 @@ async fn test_subscribe_publish_empty_topic() {
 
 #[tokio::test]
 async fn test_unsubscribe() {
-    let (mut client_1, mut client_2) = setup().await;
+    let (mut client_1, mut client_2, _stopper) = setup().await;
 
     {
         let _subscription = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
@@ -137,7 +134,7 @@ async fn test_unsubscribe() {
 
 #[tokio::test]
 async fn test_unsubscribe_2() {
-    let (mut client_1, mut client_2) = setup().await;
+    let (mut client_1, mut client_2, _stopper) = setup().await;
 
     {
         let _ = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
@@ -162,7 +159,7 @@ async fn test_unsubscribe_2() {
 
 #[tokio::test]
 async fn test_request_response() {
-    let (mut client_1, mut client_2) = setup().await;
+    let (mut client_1, mut client_2, _stopper) = setup().await;
 
     let mut rx = client_1.serve::<TestReq>("ping").await.unwrap();
 
@@ -190,7 +187,7 @@ async fn test_request_response() {
 
 #[tokio::test]
 async fn test_unserve() {
-    let (mut client_1, mut client_2) = setup().await;
+    let (mut client_1, mut client_2, _stopper) = setup().await;
 
     {
         let _request_subscription = client_2.serve::<TestReq>("ping").await.unwrap();
@@ -353,7 +350,7 @@ async fn stress_test_pub_sub_memory() {
 #[tokio::test]
 async fn test_compression() {
     let sent = vec![42u8; 10000];
-    let (mut client_1, mut client_2) = setup().await;
+    let (mut client_1, mut client_2, _stopper) = setup().await;
 
     let mut sub = client_2.subscribe_bytes("topic").await.unwrap();
     client_1.publish_bytes("topic", sent).await.unwrap();

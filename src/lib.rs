@@ -8,14 +8,14 @@
 //! 
 //! The binary `t2_bus` can be used to run an inter-process bus at a specified unix socket address:
 //! 
-//! ```
+//! ```ignore
 //! > cargo install --path .
 //! > t2_bus my_bus
 //! ```
 //! 
 //! A client can then be created in rust code:
 //! 
-//! ```rust
+//! ```ignore
 //! // connect a new client to the bus listening at "my_bus"
 //! let client = bus::Client::new_unix("my_bus").unwrap();
 //! ```
@@ -24,7 +24,7 @@
 //! 
 //! Alternatively the bus can operate in the same process as the clients. In this case messages will be passed by a memory queue, which is significantly faster.
 //! 
-//! ```rust
+//! ```ignore
 //! // start an in process bus service
 //! let(mut listener, _stopper, _joiner) = bus::serve_bus_in_process().unwrap();
 //! // connect a new client to the bus
@@ -35,7 +35,7 @@
 //! 
 //! Clients may subscribe to topics in order to receive all messages published on matching topics.
 //! 
-//! ```rust
+//! ```ignore
 //! use serde::{Deserialize, Serialize};
 //! use bus::serve_bus_in_process;
 //! use bus::Client;
@@ -104,7 +104,7 @@
 //! 
 //! Topic wildcards are not supported for either serving or requesting.
 //! 
-//! ```rust
+//! ```ignore
 //! // Define protocol message types for request and response
 //! #[derive(Clone, Deserialize, Serialize, Debug)]
 //! struct HelloRequest(String);
