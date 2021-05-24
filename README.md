@@ -79,7 +79,7 @@ price/*/eur
 price/**
 ```
 
-The topic is composed of "fragments" separated by `/`. Each fragment is either a word composed of `a-z`, `A-Z` and `_` or the wildcard `*` or the double wildcard `**`. 
+The topic is composed of "fragments" separated by `/`. Each fragment is either a word composed of `a-z` and `_` or the wildcard `*` or the double wildcard `**`. 
 
 Word fragments match identical word fragments. The wildcard `*` matches any fragment at the same position. The double wildcard `**` matches any fragment any number of times. 
 
@@ -123,13 +123,13 @@ impl RequestProtocol for HelloRequest{
 
 // A client begins to serve the `HelloProtocol` at topic ''
 let mut request_subscription = client_1.serve::<HelloRequest>("").await?;
-//!
-// Another client sends a HelloProtocol request on topic 'alice' and later receives a response
+
+// Another client sends a HelloProtocol request on topic '' and later receives a response
 let response = client_2.request("", &HelloRequest("Alice".to_string())).await?;
 
 // The serving client receives the request...
 let (_topic, request_id, request) = request_subscription.recv().await?;
-//!
+
 // ...and sends the response
 client_1.respond::<HelloRequest>(request_id, &HelloResponse(format!("Hello {}", &request.0))).await?;
 ```
