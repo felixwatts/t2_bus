@@ -37,9 +37,9 @@ Clients may subscribe to topics in order to receive all messages published on ma
 
 ```rust
 use serde::{Deserialize, Serialize};
-use bus::transport::memory_transport::listen_and_serve;
+use bus::serve_bus_in_process;
 use bus::Client;
-use bus::protocol::PublishProtocol;
+use bus::PublishProtocol;
 
 // Define a protocol message type
 #[derive(Clone, Deserialize, Serialize, Debug)]
@@ -54,13 +54,13 @@ impl PublishProtocol for HelloProtocol{
 }
 
 // Subscribe for all `HelloProtocol` type messages published on topics matching "alice"
-let mut subscription = client_1.subscribe::<HelloProtocol>("alice").await.unwrap();
+let mut subscription = client_1.subscribe::<HelloProtocol>("alice").await?;
 
 // Publish a `HelloProtocol` type message to all subscribers for topics matching "alice"
-client_2.publish("alice", &HelloProtocol("Hello Alice".to_string())).await.unwrap();
+client_2.publish("alice", &HelloProtocol("Hello Alice".to_string())).await?;
 
 // Wait to receive a message on this subscription
-let (topic, message) = subscription.recv().await.unwrap();
+let (topic, message) = subscription.recv().await?;
 
 assert_eq!(message.0, "Hello Alice".to_string());
 
@@ -128,7 +128,7 @@ let mut request_subscription = client_1.serve::<HelloRequest>("").await?;
 let response = client_2.request("", &HelloRequest("Alice".to_string())).await?;
 
 // The serving client receives the request...
-let (_topic, request_id, request) = request_subscription.recv().await.unwrap();
+let (_topic, request_id, request) = request_subscription.recv().await?;
 //!
 // ...and sends the response
 client_1.respond::<HelloRequest>(request_id, &HelloResponse(format!("Hello {}", &request.0))).await?;
