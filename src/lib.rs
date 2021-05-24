@@ -1,4 +1,4 @@
-//! # Bus
+//! # T2 Bus
 //! 
 //! An inter- or intra-process message bus supporting publish/subscribe and request/response.  
 //! 
