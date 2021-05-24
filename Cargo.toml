@@ -1,5 +1,5 @@
 [package]
-name = "bus"
+name = "t2_bus"
 version = "0.1.0"
 authors = ["Felix Watts <felixwatts@gmail.com>"]
 edition = "2018"
