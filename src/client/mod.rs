@@ -14,7 +14,7 @@ use tokio::{
     sync::mpsc::unbounded_channel, sync::mpsc::UnboundedSender, task::JoinHandle, time::timeout,
 };
 
-const ACK_TIMEOUT_S: u64 = 30;
+const ACK_TIMEOUT_S: u64 = 5;
 
 /// A client of the bus. Provides a client-side API for all bus features including publish, subscribe, request and respond.
 #[derive(Clone)]

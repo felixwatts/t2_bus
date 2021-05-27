@@ -13,7 +13,6 @@ use tokio::{
     task::JoinHandle,
 };
 
-// TODO: temporarily high to cope with Kraken slowness
 const REQUEST_TIMEOUT_S: u64 = 30;
 
 pub(crate) type ClientId = u32;

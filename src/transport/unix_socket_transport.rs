@@ -30,6 +30,7 @@ pub struct UnixBusStopper{
 }
 
 impl UnixBusStopper{
+    /// Stop the listener and core tasks
     pub async fn stop(self) -> BusResult<(BusResult<()>, BusResult<()>)> {
         let _ = self.core_stop_sender.send(());
         let _ = self.listener_stop_sender.send(());
@@ -37,9 +38,16 @@ impl UnixBusStopper{
         Ok((core_result?, listener_result?))
     }
 
+    /// Wait for the bus to be stopped by a signal from a client or an internal error
     pub async fn join(self)  -> BusResult<(BusResult<()>, BusResult<()>)> {
-        let (core_result, listener_result) = tokio::join![self.core_join_handle, self.listener_join_handle];
-        Ok((core_result?, listener_result?))
+        // Wait for core task to end
+        let core_result = self.core_join_handle.await?;
+
+        // Stop the listener
+        let _ = self.listener_stop_sender.send(());
+        let listener_result = self.listener_join_handle.await?;
+
+        Ok((core_result, listener_result))
     }
 }
 
