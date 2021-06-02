@@ -27,7 +27,7 @@ where
 
     pub fn encode_to_stream(item: &TEncode, stream: &mut std::fs::File) -> BusResult<usize> {
         // TODO generalize to any Sink
-        let bytes = serde_cbor::to_vec(&item)?;
+        let bytes = serde_cbor::ser::to_vec_packed(&item)?;
         stream.write_u32::<BigEndian>(bytes.len() as u32)?;
         stream.write(&bytes)?;
         Ok(4 + bytes.len())

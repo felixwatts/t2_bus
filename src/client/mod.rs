@@ -132,7 +132,7 @@ impl Client {
     {
         let topic = prefix_topic(TProtocol::prefix(), topic);
 
-        let payload = serde_cbor::to_vec(req)?;
+        let payload = serde_cbor::ser::to_vec(req)?;
 
         let (callback_ack_sender, mut callback_ack_receiver) = tokio::sync::oneshot::channel();
         let (callback_rsp_sender, callback_rsp_receiver) = tokio::sync::oneshot::channel();
@@ -197,7 +197,7 @@ impl Client {
     where
         TProtocol: RequestProtocol,
     {
-        let payload = serde_cbor::to_vec(rsp)?;
+        let payload = serde_cbor::ser::to_vec_packed(rsp)?;
         self._respond(request_id, MsgRspStatus::Ok, payload).await
     }
 
@@ -315,7 +315,7 @@ impl Client {
     {
         let topic = prefix_topic(TProtocol::prefix(), topic);
 
-        let payload = serde_cbor::to_vec(msg)?;
+        let payload = serde_cbor::ser::to_vec_packed(msg)?;
 
         let num_recipients = self.publish_bytes(&topic, payload).await?;
         Ok(num_recipients)

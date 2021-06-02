@@ -14,7 +14,7 @@ pub trait RequestProtocol: Serialize + DeserializeOwned + Send + 'static {
 
     fn json_to_cbor(json: serde_json::Value) -> BusResult<Vec<u8>> {
         let obj: Self = serde_json::from_value(json)?;
-        let cbor = serde_cbor::to_vec(&obj)?;
+        let cbor = serde_cbor::ser::to_vec_packed(&obj)?;
         Ok(cbor)
     }
 
