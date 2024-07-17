@@ -22,7 +22,7 @@ impl Directory {
     /// Claim the specified topic. The given `client` will become the owner of the given `topic`. Errors if the topic
     /// is already claimed
     pub(crate) fn claim(&mut self, client: u32, topic: &[&str]) -> BusResult<()> {
-        if topic.len() == 0 {
+        if topic.is_empty() {
             if let Some(owner) = self.owner {
                 return if owner == client {
                     return Ok(());
@@ -49,7 +49,7 @@ impl Directory {
 
     /// Unclaim the given topic. After this the given `client` will not be the owner of the given `topic`
     pub(crate) fn unclaim(&mut self, client: u32, topic: &[&str]) -> BusResult<()> {
-        if topic.len() == 0 {
+        if topic.is_empty() {
             if let Some(owner) = self.owner {
                 if owner == client {
                     self.owner = None;
@@ -65,15 +65,15 @@ impl Directory {
 
         let child = self.children.get_mut(topic[0]);
 
-        return match child {
+        match child {
             Some(child) => child.unclaim(client, &topic[1..]),
             None => Ok(()),
-        };
+        }
     }
 
     /// Gets the client that is the owner of the given `topic`.
     pub(crate) fn get_owner(&self, topic: &[&str]) -> Option<u32> {
-        if topic.len() == 0 {
+        if topic.is_empty() {
             return self.owner;
         }
 
@@ -91,7 +91,7 @@ impl Directory {
     /// Subscribe the given `client` to the given `topic`. The client will then be returned by `get_subscribers`
     /// for matching topics
     pub(crate) fn subscribe(&mut self, client: u32, topic: &[&str]) {
-        if topic.len() == 0 {
+        if topic.is_empty() {
             self.subscribers.insert(client);
             return;
         }
@@ -107,7 +107,7 @@ impl Directory {
     /// Unsubscribe the given `client` from the given `topic`. The client will no longer be returned by `get_subscribers`
     /// for matching topics
     pub(crate) fn unsubscribe(&mut self, client: u32, topic: &[&str]) -> BusResult<()> {
-        if topic.len() == 0 {
+        if topic.is_empty() {
             self.subscribers.remove(&client);
             return Ok(());
         }
@@ -116,7 +116,7 @@ impl Directory {
             return child.unsubscribe(client, &topic[1..]);
         }
 
-        return Ok(());
+        Ok(())
     }
 
     /// Gets any clients that are currently subscribed for topics matching the given `topic`
@@ -132,7 +132,7 @@ impl Directory {
         let mut topic = vec![];
         let mut results = vec![];
         self._drop_client(client, &mut topic, &mut results);
-        return results;
+        results
     }
 
     fn _drop_client(&mut self, client: u32, topic: &mut Vec<String>, results: &mut Vec<String>) {
@@ -142,11 +142,9 @@ impl Directory {
             }
         }
 
-        if self.subscribers.remove(&client) {
-            if self.subscribers.len() == 0 {
-                let topic_str = topic.join("/");
-                results.push(topic_str);
-            }
+        if self.subscribers.remove(&client) && self.subscribers.is_empty() {
+            let topic_str = topic.join("/");
+            results.push(topic_str);
         }
 
         for kvp in self.children.iter_mut() {
@@ -162,7 +160,7 @@ impl Directory {
         subscribers: &mut HashSet<u32>,
         double_wildcard: bool,
     ) {
-        if topic.len() == 0 {
+        if topic.is_empty() {
             subscribers.extend(self.subscribers.iter());
             return;
         }
@@ -247,9 +245,9 @@ fn test_drop_client() {
 
 fn _test_drop_client(subscriptions: Vec<Vec<&str>>) {
     let mut subject = Directory::new();
-    for i in 0..subscriptions.len() {
-        for topic in &subscriptions[i] {
-            subject.subscribe(i as u32, &parse_topic(&topic).unwrap());
+    for (i, sub) in subscriptions.iter().enumerate() {
+        for &topic in sub {
+            subject.subscribe(i as u32, &parse_topic(topic).unwrap());
         }
     }
 
@@ -260,7 +258,7 @@ fn _test_drop_client(subscriptions: Vec<Vec<&str>>) {
     }
 
     for topic in &subscriptions[0] {
-        let subscribers = subject.get_subscribers(&parse_topic(&topic).unwrap());
+        let subscribers = subject.get_subscribers(&parse_topic(topic).unwrap());
         assert!(!subscribers.contains(&0));
     }
 }

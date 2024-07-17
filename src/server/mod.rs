@@ -61,8 +61,7 @@ impl Core {
     pub fn spawn(mut self) -> BusResult<(tokio::sync::oneshot::Sender<()>, JoinHandle<BusResult<()>>)> {
         let (stop_sender, stop_receiver) = tokio::sync::oneshot::channel();
         let join_handle = tokio::spawn(async move {
-            let result = self.run(stop_receiver).await;
-            result
+            self.run(stop_receiver).await
         });
         Ok((stop_sender, join_handle))
     }
@@ -151,16 +150,12 @@ impl Core {
             println!("[{}] --> [B] {}", client_id, &log_msg);
         }
 
-        let stop = if let ProtocolClient::Stop = msg.content {
-            true
-        } else {
-            false
-        };
+        let stop = matches!(msg.content, ProtocolClient::Stop);
 
         let result = match msg.content {
             ProtocolClient::Pub(params) => self
                 .publish(params)
-                .map(|num_recipients| Some(num_recipients)),
+                .map(Some),
             _ => {
                 let result = match msg.content {
                     ProtocolClient::Sub(params) => self.subscribe(client_id, params),
@@ -215,7 +210,7 @@ impl Core {
         let topic = parse_topic(&params.topic)?;
         let server_id_opt = self.directory.get_owner(&topic);
 
-        return match server_id_opt {
+        match server_id_opt {
             Some(server_id) => {
                 let req = ProtocolServer::Req(MsgReq {
                     topic: params.topic,
@@ -236,14 +231,14 @@ impl Core {
                 Ok(())
             }
             None => Err(BusError::ServiceNotFound(params.topic.clone())),
-        };
+        }
     }
 
     fn respond(&mut self, params: MsgRsp) -> BusResult<()> {
         let dest_option = self.pending_responses.remove(&params.req_id);
         if let Some((client_id, req_id)) = dest_option {
             let rsp = ProtocolServer::Rsp(MsgRsp {
-                req_id: req_id,
+                req_id,
                 status: params.status,
                 payload: params.payload,
             });
@@ -324,8 +319,8 @@ impl Core {
         self.next_msg_id += 1;
 
         Msg {
-            id: id,
-            content: content,
+            id,
+            content
         }
     }
 }

@@ -161,7 +161,7 @@ pub use transport::memory_transport::MemoryTransportListener;
 pub use transport::cbor_codec::CborCodec;
 pub use client::subscription::{RequestSubscription, Subscription, SubscriptionInto};
 
-pub const DEFAULT_BUS_ADDR: &'static str = ".bus";
+pub const DEFAULT_BUS_ADDR: &str = ".bus";
 
 
 

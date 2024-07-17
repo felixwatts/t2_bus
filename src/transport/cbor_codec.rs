@@ -7,6 +7,7 @@ use std::io::Write;
 use std::marker::PhantomData;
 
 // The internal codec used within the bus. Can be useful in conjunction with `Client::publish_bytes`, `Client::publish_bytes` and `Client::request_bytes`.
+#[derive(Default)]
 pub struct CborCodec<TEncode, TDecode> {
     msg_len: Option<usize>,
     e: PhantomData<TEncode>,
@@ -29,7 +30,7 @@ where
         // TODO generalize to any Sink
         let bytes = serde_cbor::ser::to_vec_packed(&item)?;
         stream.write_u32::<BigEndian>(bytes.len() as u32)?;
-        stream.write(&bytes)?;
+        stream.write_all(&bytes)?;
         Ok(4 + bytes.len())
     }
 }

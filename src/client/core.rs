@@ -85,7 +85,7 @@ where
         let mut core = ClientCore {
             transport,
             subscriptions: Directory::new(),
-            task_receiver: task_receiver,
+            task_receiver,
             next_msg_id: 0,
             callbacks_ack: HashMap::new(),
             callbacks_rsp: HashMap::new(),
@@ -145,7 +145,7 @@ where
             Task::Pub(params) => {
                 self.callbacks_ack.insert(id, params.callback_ack);
                 Msg {
-                    id: id,
+                    id,
                     content: ProtocolClient::Pub(params.msg),
                 }
             }
@@ -155,7 +155,7 @@ where
                 self.subscriptions
                     .subscribe(id, &parse_topic(&params.msg.topic)?);
                 Msg {
-                    id: id,
+                    id,
                     content: ProtocolClient::Sub(params.msg),
                 }
             }
@@ -163,19 +163,19 @@ where
                 self.callbacks_ack.insert(id, params.callback_ack);
                 self.callbacks_rsp.insert(id, params.callback_rsp);
                 Msg {
-                    id: id,
+                    id,
                     content: ProtocolClient::Req(params.msg),
                 }
             }
             Task::Rsp(params) => {
                 self.callbacks_ack.insert(id, params.callback_ack);
                 Msg {
-                    id: id,
+                    id,
                     content: ProtocolClient::Rsp(params.msg),
                 }
             }
             Task::Unsub(params) => Msg {
-                id: id,
+                id,
                 content: ProtocolClient::Unsub(params.msg),
             },
             Task::Unsrv(params) => {
@@ -183,7 +183,7 @@ where
                 let callback_id = self.subscriptions.get_owner(&topic).unwrap();
                 self.subscriptions.unclaim(callback_id, &topic)?;
                 Msg {
-                    id: id,
+                    id,
                     content: ProtocolClient::Unsrv(params.msg),
                 }
             }
@@ -193,7 +193,7 @@ where
                 self.subscriptions
                     .claim(id, &parse_topic(&params.msg.topic)?)?;
                 Msg {
-                    id: id,
+                    id,
                     content: ProtocolClient::Srv(params.msg),
                 }
             }
@@ -201,7 +201,7 @@ where
             Task::StopBus(params) => {
                 self.callbacks_ack.insert(id, params.callback_ack);
                 Msg {
-                    id: id,
+                    id,
                     content: ProtocolClient::Stop,
                 }
             }
@@ -240,7 +240,7 @@ where
                         .unwrap()
                         .send(payload.clone());
 
-                    if let Err(_) = callback_result {
+                    if callback_result.is_err() {
                         // The subscriber dropped the callback channel
 
                         // remove local subscriber
@@ -250,7 +250,7 @@ where
                         // unsubscribe from server for any topics that now have no subscribers
                         for topic in topics {
                             let unsubscribe_task = Task::Unsub(TaskUnsub {
-                                msg: MsgUnsub { topic: topic },
+                                msg: MsgUnsub { topic },
                             });
                             self.send(unsubscribe_task).await?;
 

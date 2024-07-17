@@ -54,7 +54,7 @@ impl UnixBusStopper{
 pub fn listen_and_serve(addr: &PathBuf) -> BusResult<UnixBusStopper> {
     let mut core = crate::server::Core::new();
     let (listener_stop_sender, listener_join_handle) =
-        listen(&addr, core.get_task_sender())?;
+        listen(addr, core.get_task_sender())?;
     let (core_stop_sender, core_join_handle) = core.spawn()?;
     let stopper = UnixBusStopper{
         core_stop_sender,

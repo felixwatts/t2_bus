@@ -1,8 +1,8 @@
 use crate::err::*;
 use regex::Regex;
 
-pub const WILDCARD: &'static str = "*";
-pub const DOUBLE_WILDCARD: &'static str = "**";
+pub const WILDCARD: &str = "*";
+pub const DOUBLE_WILDCARD: &str = "**";
 
 lazy_static! {
     static ref RGX_TOPIC: Regex =
@@ -42,7 +42,7 @@ pub(crate) fn parse_topic(topic_str: &str) -> BusResult<Vec<&str>> {
         return Err(BusError::InvalidTopicString(format!("Invalid topic string: {}", topic_str)));
     }
 
-    return Ok(topic_str.split("/").collect::<Vec<&str>>());
+    return Ok(topic_str.split('/').collect::<Vec<&str>>());
 }
 
 pub fn get_protocol(topic_str: &str) -> BusResult<&str> {

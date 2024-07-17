@@ -18,7 +18,7 @@ pub trait RequestProtocol: Serialize + DeserializeOwned + Send + 'static {
         Ok(cbor)
     }
 
-    fn cbor_to_json(cbor: &Vec<u8>) -> BusResult<serde_json::Value> {
+    fn cbor_to_json(cbor: &[u8]) -> BusResult<serde_json::Value> {
         let obj: Self::Rsp = serde_cbor::from_slice(cbor)?;
         let json = serde_json::to_value(&obj)?;
         Ok(json)

@@ -110,9 +110,9 @@ impl Client {
                 let req: TProtocol = serde_cbor::from_slice(&data).unwrap();
 
                 let send_result = typed_request_sender.send((msg_req.topic, req_id, req));
-                match send_result {
-                    Err(_) => return,
-                    _ => {}
+
+                if send_result.is_err() {
+                    return;
                 }
             }
         });
@@ -245,7 +245,7 @@ impl Client {
                     .unwrap();
 
                 let result = callback_sender.send((msg_pub.topic, msg));
-                if let Err(_) = result {
+                if result.is_err() {
                     return;
                 }
             }
@@ -347,7 +347,7 @@ impl Client {
 
     async fn _respond(
         &mut self,
-        request_id: MsgId,
+        req_id: MsgId,
         status: MsgRspStatus,
         payload: Vec<u8>,
     ) -> BusResult<()> {
@@ -355,8 +355,8 @@ impl Client {
 
         let task = Task::Rsp(TaskRsp {
             msg: MsgRsp {
-                req_id: request_id,
-                status: status,
+                req_id,
+                status,
                 payload: payload.into(),
             },
             callback_ack: callback_ack_sender,
