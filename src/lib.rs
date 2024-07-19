@@ -25,7 +25,7 @@
 //! # use t2_bus::prelude::*;
 //! # async fn connect_client() {
 //! // connect a new client to the bus listening at "my_bus"
-//! let client = Client::new_unix(&"my_bus".into()).await.unwrap();
+//! let client = t2_bus::transport::unix::connect(&"my_bus".into()).await.unwrap();
 //! # }
 //! ```
 //! 
@@ -37,9 +37,9 @@
 //! # use t2_bus::prelude::*;
 //! # fn test() {
 //! // start an in process bus service
-//! let (stopper, connector) = listen_and_serve_memory().unwrap();
+//! let (stopper, connector) = t2_bus::transport::memory::serve().unwrap();
 //! // connect a new client to the bus
-//! let client = Client::new_memory(&connector).unwrap();
+//! let client = t2_bus::transport::memory::connect(&connector).unwrap();
 //! # 
 //! # }
 //! ```
@@ -51,9 +51,9 @@
 //! # use t2_bus::prelude::*;
 //! # async fn test() {
 //! // start a TCP based bus
-//! let stopper = listen_and_serve_tcp("localhost:4242").await.unwrap();
+//! let stopper = t2_bus::transport::tcp::serve("localhost:4242").await.unwrap();
 //! // connect a new client to the bus
-//! let client = Client::new_tcp("localhost:4242").await.unwrap();
+//! let client = t2_bus::transport::tcp::connect("localhost:4242").await.unwrap();
 //! # }
 //! ```
 //! 
@@ -80,9 +80,9 @@
 //! // ..
 //! 
 //! # async fn test() -> BusResult<()> {
-//!     # let (stopper, connector) = listen_and_serve_memory()?;
-//!     # let client_1 = Client::new_memory(&connector)?;
-//!     # let client_2 = Client::new_memory(&connector)?;
+//!     # let (stopper, connector) = t2_bus::transport::memory::serve()?;;
+//!     # let client_1 = t2_bus::transport::memory::connect(&connector)?;
+//!     # let client_2 = t2_bus::transport::memory::connect(&connector)?;
 //!     # 
 //! // Subscribe for all `HelloProtocol` type messages published on topics matching "alice"
 //! let mut subscription = client_1.subscribe::<HelloProtocol>("alice").await?;
@@ -163,10 +163,10 @@
 //! # #[tokio::main]
 //! # async fn main() -> BusResult<()> {
 //! #
-//! # let (stopper, connector) = listen_and_serve_memory()?;
+//! # let (stopper, connector) = t2_bus::transport::memory::serve()?;
 //! #
-//! # let client_1 = Client::new_memory(&connector)?;
-//! # let client_2 = Client::new_memory(&connector)?;
+//! # let client_1 = t2_bus::transport::memory::connect(&connector)?;
+//! # let client_2 = t2_bus::transport::memory::connect(&connector)?;
 //! 
 //! // A client begins to serve the `HelloProtocol` at topic ''
 //! let mut request_subscription = client_1.serve::<HelloRequest>("").await?;

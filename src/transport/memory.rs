@@ -12,10 +12,10 @@ use super::Transport;
 /// # use t2_bus::prelude::*;
 /// # #[tokio::main]
 /// # async fn main() -> BusResult<()> {
-///    let(_stopper, connector) = listen_and_serve_memory()?;
+///    let(_stopper, connector) = t2_bus::transport::memory::serve()?;
 ///
 ///    // Create and connect a client
-///    let client = Client::new_memory(&connector)?;
+///    let client = t2_bus::transport::memory::connect(&connector)?;
 /// #
 /// #     Ok(())
 /// # }
