@@ -9,7 +9,8 @@ use super::{
 };
 use crate::protocol::*;
 use crate::err::*;
-use crate::transport::memory_transport::MemoryConnector;
+use crate::transport::memory::MemoryConnector;
+use crate::transport::tcp::connect_tcp;
 
 use std::{path::PathBuf, time::Duration};
 use tokio::net::ToSocketAddrs;
@@ -26,9 +27,7 @@ pub struct Client {
 }
 
 impl Client {
-    fn new<TTransport>(transport: TTransport) -> BusResult<(Client, JoinHandle<BusResult<()>>)>
-    where
-        TTransport: Transport<ProtocolClient, ProtocolServer>,
+    fn new(transport: impl Transport<ProtocolClient, ProtocolServer>) -> BusResult<(Client, JoinHandle<BusResult<()>>)>
     {
         let (task_sender, task_receiver) = tokio::sync::mpsc::unbounded_channel();
 
@@ -41,13 +40,13 @@ impl Client {
 
     /// Create a new bus client connected to the bus at the specified unix socket address
     pub async fn new_tcp(addr: impl ToSocketAddrs) -> BusResult<(Client, JoinHandle<BusResult<()>>)> {
-        let transport = crate::transport::socket_transport::connect_tcp(addr).await?;
+        let transport = connect_tcp(addr).await?;
         Client::new(transport)
     }
 
     /// Create a new bus client connected to the bus at the specified unix socket address
     pub async fn new_unix(addr: &PathBuf) -> BusResult<(Client, JoinHandle<BusResult<()>>)> {
-        let transport = crate::transport::socket_transport::connect_unix(addr).await?;
+        let transport = crate::transport::unix::connect_unix(addr).await?;
         Client::new(transport)
     }
 

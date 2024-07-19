@@ -36,7 +36,7 @@ pub fn unique_addr() -> std::path::PathBuf {
 
 async fn setup() -> (Client, Client, impl Stopper) {
     let addr = unique_addr();
-    let listener = crate::transport::socket_transport::UnixListener::new(&addr).unwrap();
+    let listener = crate::transport::unix::UnixListener::new(&addr).unwrap();
     let stopper = crate::server::listen::listen_and_serve(listener).unwrap();
 
     let (client_1, _) = Client::new_unix(&addr).await.unwrap();
@@ -221,7 +221,7 @@ async fn stress_test_pub_sub() {
     let start = Instant::now();
 
     // let mut core = Core::new();
-    let listener = crate::transport::socket_transport::UnixListener::new(&".test".into()).unwrap();
+    let listener = crate::transport::unix::UnixListener::new(&".test".into()).unwrap();
     let stopper = crate::server::listen::listen_and_serve(listener).unwrap();
     // let _core_join_handle = core.spawn().unwrap();
 
@@ -261,13 +261,8 @@ async fn stress_test_pub_sub() {
         client_join_handles.push(run_client(client_id));
     }
 
-    loop {
-        match client_join_handles.next().await {
-            Some(result) => {
-                result.unwrap();
-            }
-            None => break,
-        }
+    while let Some(result) = client_join_handles.next().await {
+        result.unwrap();
     }
 
     let end = Instant::now();
@@ -322,13 +317,8 @@ async fn stress_test_pub_sub_memory() {
         client_join_handles.push(run_client(client_id, client));
     }
 
-    loop {
-        match client_join_handles.next().await {
-            Some(result) => {
-                result.unwrap();
-            }
-            None => break,
-        }
+    while let Some(result) = client_join_handles.next().await {
+        result.unwrap();
     }
 
     let end = Instant::now();

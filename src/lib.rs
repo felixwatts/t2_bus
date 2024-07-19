@@ -164,7 +164,7 @@ pub use client::Client;
 ///    let(_stopper, connector) = listen_and_serve_memory()?;
 ///
 ///    // Create and connect a client
-///    let (mut client, _client_joiner) = Client::new_memory(&mut connector)?;
+///    let (mut client, _client_joiner) = Client::new_memory(&connector)?;
 /// #
 /// #     Ok(())
 /// # }

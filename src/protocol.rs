@@ -5,9 +5,6 @@ use flate2::Compression;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{fmt, io::prelude::*};
 
-pub type ServerCodec = CborCodec<Msg<ProtocolServer>, Msg<ProtocolClient>>;
-pub type ClientCodec = CborCodec<Msg<ProtocolServer>, Msg<ProtocolClient>>;
-
 pub trait PublishProtocol: Serialize + DeserializeOwned + Send + 'static + std::fmt::Debug {
     fn prefix() -> &'static str;
 }

@@ -12,8 +12,7 @@ pub struct MemoryTransport<TSend, TRecv> {
     receiver: UnboundedReceiver<BusResult<Msg<TRecv>>>,
 }
 
-pub(crate) struct MemoryListener {
-    
+pub(crate) struct MemoryListener {    
     accept_receiver: UnboundedReceiver<MemoryTransport<ProtocolServer, ProtocolClient>>,
 }
 
