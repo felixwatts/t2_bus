@@ -12,6 +12,9 @@ pub enum BusError{
     #[error("Request failed: {0}")]
     RequestFailed(String),
 
+    #[error("Respond failed: Invalid request ID")]
+    InvalidRequestId,
+
     #[error("Claim topic failed: Already claimed")]       
     TopicAlreadyClaimed,
     #[error("Claim topic failed: Wildcards not supported")]    

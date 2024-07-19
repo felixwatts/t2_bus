@@ -14,6 +14,12 @@ const REQUEST_TIMEOUT_S: u64 = 30;
 
 pub(crate) type ClientId = u32;
 
+struct PendingResponse{
+    request_id: MsgId,
+    responder_id: ClientId,
+    requester_id: ClientId
+}
+
 pub(crate) struct Core {
     task_sender: UnboundedSender<Task>,
     task_receiver: UnboundedReceiver<Task>,
@@ -21,7 +27,7 @@ pub(crate) struct Core {
     directory: Directory,
     next_client_id: u32,
     next_msg_id: u32,
-    pending_responses: HashMap<u32, (u32, u32)>,
+    pending_responses: HashMap<u32, PendingResponse>,
 }
 
 impl Core {
@@ -90,7 +96,8 @@ impl Core {
                     status: RspMsgStatus::Timeout,
                     payload: vec![].into(),
                 };
-                self.respond(rsp)?;
+
+                self.respond(0, rsp)?;
 
                 false
             }
@@ -153,7 +160,7 @@ impl Core {
                     ProtocolClient::Srv(params) => self.serve(client_id, params),
                     ProtocolClient::Unsrv(params) => self.unserve(client_id, params),
                     ProtocolClient::Req(params) => self.request(client_id, msg.id, params),
-                    ProtocolClient::Rsp(params) => self.respond(params),
+                    ProtocolClient::Rsp(params) => self.respond(client_id, params),
                     ProtocolClient::Stop => Ok(()),
                     _ => panic!(),
                 };
@@ -209,7 +216,13 @@ impl Core {
 
                 let msg_id = self.deliver(server_id, req)?;
 
-                self.pending_responses.insert(msg_id, (client_id, req_id));
+                let pending_response = PendingResponse{
+                    request_id: req_id,
+                    requester_id: client_id,
+                    responder_id: server_id
+                };
+
+                self.pending_responses.insert(msg_id, pending_response);
 
                 let task_sender_clone = self.task_sender.clone();
                 tokio::spawn(async move {
@@ -224,16 +237,26 @@ impl Core {
         }
     }
 
-    fn respond(&mut self, params: RspMsg) -> BusResult<()> {
-        let dest_option = self.pending_responses.remove(&params.req_id);
-        if let Some((client_id, req_id)) = dest_option {
+    fn respond(&mut self, client_id: ClientId, params: RspMsg) -> BusResult<()> {
+        let pending_response_option = self.pending_responses.get(&params.req_id);
+        if let Some(&PendingResponse{request_id, requester_id, responder_id, .. }) = pending_response_option {
+
+            // The responder is trying to respond to a request that wasn't sent to them
+            if client_id != 0 && responder_id != client_id {
+                return Err(BusError::InvalidRequestId)
+            };
+
+            self.pending_responses.remove(&params.req_id);
+
             let rsp = ProtocolServer::Rsp(RspMsg {
-                req_id,
+                req_id: request_id,
                 status: params.status,
                 payload: params.payload,
             });
 
-            self.deliver(client_id, rsp)?;
+            self.deliver(requester_id, rsp)?;
+        } else {
+            return Err(BusError::InvalidRequestId)
         }
 
         Ok(())

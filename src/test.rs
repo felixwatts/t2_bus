@@ -1,8 +1,8 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use futures::{stream::FuturesUnordered, StreamExt};
 use tokio::{join, task::JoinHandle};
 use super::protocol::{PublishProtocol, RequestProtocol};
-use crate::{client::Client, err::BusResult, server::{listen_and_serve_tcp, listen_and_serve_unix}, stopper::Stopper};
+use crate::{client::Client, err::{BusError, BusResult}, server::{listen_and_serve_tcp, listen_and_serve_unix}, stopper::Stopper};
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 struct TestPub(pub String);
@@ -365,4 +365,33 @@ async fn test_compression() {
     for byte in received {
         assert_eq!(byte, 42u8);
     }
+}
+
+#[tokio::test]
+async fn test_respond_with_bad_request_id() {
+    let (client_1, client_2, _stopper) = setup().await;
+
+    let mut rx = client_1.serve::<TestReq>("ping").await.unwrap();
+
+    let ping_task = tokio::spawn(async move {
+        let (topic, req_id, req) = rx.recv().await.unwrap();
+
+        assert_eq!("test/ping", &topic);
+        assert_eq!("PING", req.0);
+
+        let result = client_1
+            .respond::<TestReq>(req_id + 1, &TestRsp("PONG".into()))
+            .await;
+
+        assert_eq!(BusResult::Err(BusError::RequestFailed("Respond failed: Invalid request ID".into())), result);
+    });
+
+    let _ = tokio::time::timeout(
+        Duration::from_secs(3), 
+        client_2.request("ping", &TestReq("PING".into()))
+    ).await;
+
+    // assert_eq!(BusResult::Err(BusError::RequestFailedTimeout), rsp_result);
+
+    let _ = tokio::try_join!(ping_task).unwrap();
 }

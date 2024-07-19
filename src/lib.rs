@@ -95,11 +95,11 @@
 //! 
 //! assert_eq!(message.0, "Hello Alice".to_string());
 //! 
-//! //! // When the subscription object is dropped the subscription ends
+//! // When the subscription object is dropped the subscription ends
 //!     #
 //!     # Ok(())
-//! }
-//! 
+//! # }
+//! #
 
 //! ```
 //! 
