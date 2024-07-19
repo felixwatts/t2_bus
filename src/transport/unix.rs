@@ -1,9 +1,9 @@
 use crate::{
-    client::Client, err::BusResult, prelude::Stopper, protocol::{Msg, ProtocolClient, ProtocolServer}, server::listen::{listen_and_serve, Listener}, stopper::MultiStopper
+    client::Client, err::BusResult, prelude::Stopper, protocol::{ProtocolClient, ProtocolServer}, server::listen::{listen_and_serve, Listener}
 };
 use std::path::PathBuf;
 use tokio::net::UnixStream;
-use tokio_util::codec::Framed;
+
 use super::{cbor_codec::CborCodec, Transport};
 
 /// Start a bus server using the TCP socket transport. You can then connect to
