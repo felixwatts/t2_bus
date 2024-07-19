@@ -45,9 +45,9 @@ pub(crate) fn parse_topic(topic_str: &str) -> BusResult<Vec<&str>> {
     return Ok(topic_str.split('/').collect::<Vec<&str>>());
 }
 
-pub fn get_protocol(topic_str: &str) -> BusResult<&str> {
-    Ok(parse_topic(topic_str)?[0])
-}
+// pub fn get_protocol(topic_str: &str) -> BusResult<&str> {
+//     Ok(parse_topic(topic_str)?[0])
+// }
 
 pub fn prefix_topic(prefix: &str, topic: &str) -> String {
     match topic {
@@ -56,12 +56,12 @@ pub fn prefix_topic(prefix: &str, topic: &str) -> String {
     }
 }
 
-pub fn unprefix_topic(topic: &str) -> String {
-    let index_of_first_slash = topic.match_indices('/').next().unwrap().0;
-    topic[index_of_first_slash + 1..].to_string()
-}
+// pub fn unprefix_topic(topic: &str) -> String {
+//     let index_of_first_slash = topic.match_indices('/').next().unwrap().0;
+//     topic[index_of_first_slash + 1..].to_string()
+// }
 
-#[test]
-fn test_unprefix_topic() {
-    assert_eq!("a/b/c", &unprefix_topic("prefix/a/b/c"))
-}
+// #[test]
+// fn test_unprefix_topic() {
+//     assert_eq!("a/b/c", &unprefix_topic("prefix/a/b/c"))
+// }

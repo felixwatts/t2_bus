@@ -2,9 +2,9 @@
 
 use futures::Future;
 use tokio::task::JoinHandle;
+use crate::prelude::{BusError, BusResult};
 
-use crate::{BusError, BusResult};
-
+/// Represents a way to stop a concurrent process and to wait for it to stop. Returned by some functions that spawn concurrent processes.
 pub trait Stopper{
     /// Send a stop signal to the process and then wait for it to terminate
     fn stop(self) -> impl Future<Output=BusResult<()>> + Send;

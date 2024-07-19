@@ -1,6 +1,6 @@
 use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
 
-use crate::{stopper::{BasicStopper, MultiStopper}, transport::Transport, BusResult};
+use crate::{stopper::{BasicStopper, MultiStopper}, transport::Transport, err::BusResult};
 
 use super::{core::Core, ProtocolClient, ProtocolServer, Task};
 

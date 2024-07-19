@@ -1,14 +1,20 @@
 //! # T2 Bus
 //! 
-//! An inter- or intra-process message bus supporting publish/subscribe and request/response.  
+//! A message bus supporting publish/subscribe and request/response.  
 //! 
-//! ## Inter-process mode
+//! The bus supports three transport types:
+//! 
+//! - Memory: messages are passed via a memory queue between clients that exist within the same process.
+//! - Unix: Messages are passed via a Unix socket between clients that exist within the same or different processes on a single host machine.
+//! - TCP: Messages are passed via a TCP socket between clients that may be on different hosts. Optionally, TLS may be used to provide encryption and mutual authentication between the client and server.
+//! 
+//! ## Unix Mode
 //! 
 //! The bus can operate as an inter-process message bus. In this case the server and each of the clients run in separate processes and messages are passed via a Unix socket.
 //! 
 //! The binary `t2_bus` can be used to run an inter-process bus at a specified unix socket address:
 //! 
-//! ```ignore
+//! ```text
 //! > cargo install --path .
 //! > t2_bus my_bus
 //! ```
@@ -16,25 +22,38 @@
 //! A client can then be created in rust code:
 //! 
 //! ```
-//! # use t2_bus::Client;
+//! # use t2_bus::prelude::*;
 //! # async fn connect_client() {
 //! // connect a new client to the bus listening at "my_bus"
 //! let client = Client::new_unix(&"my_bus".into()).await.unwrap();
 //! # }
 //! ```
 //! 
-//! ## Intra-process mode
+//! ## Memory Mode
 //! 
 //! Alternatively the bus can operate in the same process as the clients. In this case messages will be passed by a memory queue, which is significantly faster.
 //! 
 //! ```
-//! # use t2_bus::listen_and_serve_memory;
-//! # use t2_bus::Client;
+//! # use t2_bus::prelude::*;
 //! # fn test() {
 //! // start an in process bus service
 //! let (stopper, connector) = listen_and_serve_memory().unwrap();
 //! // connect a new client to the bus
 //! let client = Client::new_memory(&connector).unwrap();
+//! # 
+//! # }
+//! ```
+//! ## TCP Mode
+//! 
+//! If the bus and the clients need to be on different hosts then TCP mode can used.
+//! 
+//! ```
+//! # use t2_bus::prelude::*;
+//! # async fn test() {
+//! // start a TCP based bus
+//! let stopper = listen_and_serve_tcp("localhost:4242").await.unwrap();
+//! // connect a new client to the bus
+//! let client = Client::new_tcp("localhost:4242").await.unwrap();
 //! # }
 //! ```
 //! 
@@ -43,12 +62,9 @@
 //! Clients may subscribe to topics in order to receive all messages published on matching topics.
 //! 
 //! ```
-//! use serde::{Deserialize, Serialize};
-//! use t2_bus::listen_and_serve_memory;
-//! use t2_bus::Client;
-//! use t2_bus::PublishProtocol;
-//! use t2_bus::{BusError, BusResult};
-//! 
+//! # use serde::{Deserialize, Serialize};
+//! # use t2_bus::prelude::*;
+//! #
 //! // Define a protocol message type
 //! #[derive(Clone, Deserialize, Serialize, Debug)]
 //! struct HelloProtocol(String);
@@ -61,24 +77,25 @@
 //!     }
 //! }
 //! 
-//! async fn test() -> BusResult<()> {
-//!     # let (stopper, connector) = listen_and_serve_memory()?;
+//! // ..
 //! 
+//! # async fn test() -> BusResult<()> {
+//!     # let (stopper, connector) = listen_and_serve_memory()?;
 //!     # let client_1 = Client::new_memory(&connector)?;
 //!     # let client_2 = Client::new_memory(&connector)?;
+//!     # 
+//! // Subscribe for all `HelloProtocol` type messages published on topics matching "alice"
+//! let mut subscription = client_1.subscribe::<HelloProtocol>("alice").await?;
 //! 
-//!     // Subscribe for all `HelloProtocol` type messages published on topics matching "alice"
-//!     let mut subscription = client_1.subscribe::<HelloProtocol>("alice").await?;
+//! // Publish a `HelloProtocol` type message to all subscribers for topics matching "alice"
+//! client_2.publish("alice", &HelloProtocol("Hello Alice".to_string())).await?;
 //! 
-//!     // Publish a `HelloProtocol` type message to all subscribers for topics matching "alice"
-//!     client_2.publish("alice", &HelloProtocol("Hello Alice".to_string())).await?;
+//! // Wait to receive a message on this subscription
+//! let (topic, message) = subscription.recv().await.unwrap();
 //! 
-//!     // Wait to receive a message on this subscription
-//!     let (topic, message) = subscription.recv().await.ok_or(BusError::ChannelClosed)?;
+//! assert_eq!(message.0, "Hello Alice".to_string());
 //! 
-//!     assert_eq!(message.0, "Hello Alice".to_string());
-//! 
-//!     Ok(())
+//!     # Ok(())
 //! }
 //! 
 //! // When the subscription object is dropped the subscription ends
@@ -122,12 +139,9 @@
 //! Topic wildcards are not supported for either serving or requesting.
 //! 
 //! ```
-//! # use t2_bus::Client;
-//! # use t2_bus::listen_and_serve_memory;
-//! # use t2_bus::BusResult;
-//! # use t2_bus::RequestProtocol;
+//! # use t2_bus::prelude::*;
 //! # use serde::{Serialize, Deserialize};
-//! 
+//! #
 //! // Define protocol message types for request and response
 //! #[derive(Clone, Deserialize, Serialize, Debug)]
 //! struct HelloRequest(String);
@@ -143,23 +157,25 @@
 //!         "hello"
 //!     }
 //! }
-//! 
+//! #
 //! # #[tokio::main]
 //! # async fn main() -> BusResult<()> {
-//! 
+//! #
 //! # let (stopper, connector) = listen_and_serve_memory()?;
-//! 
+//! #
 //! # let client_1 = Client::new_memory(&connector)?;
 //! # let client_2 = Client::new_memory(&connector)?;
 //! 
 //! // A client begins to serve the `HelloProtocol` at topic ''
 //! let mut request_subscription = client_1.serve::<HelloRequest>("").await?;
 //!
+//! # tokio::spawn(async move {
 //! // Another client sends a HelloProtocol request on topic '' and later receives a response
-//! let response = client_2.request("", &HelloRequest("Alice".to_string())).await?;
+//! let response = client_2.request("", &HelloRequest("Alice".to_string())).await.unwrap();
+//! # });
 //! 
 //! // The serving client receives the request...
-//! let (_topic, request_id, request) = request_subscription.recv().await.unwrap() {
+//! let (_topic, request_id, request) = request_subscription.recv().await.unwrap();
 //!     
 //! // ...and sends the response
 //! client_1.respond::<HelloRequest>(request_id, &HelloResponse(format!("Hello {}", &request.0))).await?;
@@ -169,15 +185,18 @@
 //! # }
 //! ```
 
+pub mod prelude;
+
 pub(crate) mod client;
 pub(crate) mod directory;
-pub mod server;
-pub mod topic;
+pub(crate) mod server;
+pub(crate) mod topic;
 pub(crate) mod transport;
 pub(crate) mod protocol;
 pub(crate) mod err;
+
 #[cfg(debug_assertions)]
-pub(crate) mod debug;
+mod debug;
 mod stopper;
 
 #[macro_use]
@@ -187,49 +206,6 @@ extern crate serde_derive;
 
 #[cfg(test)]
 pub mod test;
-
-pub use err::*;
-pub use protocol::{RequestProtocol, PublishProtocol, PubMsg};
-pub use client::Client;
-
-/// Start a bus server using the in-process memory transport. You can then connect to
-/// and use the bus from within the same rust program.
-/// ```rust
-/// # use t2_bus::Client;
-/// # use t2_bus::listen_and_serve_memory;
-/// # use t2_bus::BusResult;
-/// # #[tokio::main]
-/// # async fn main() -> BusResult<()> {
-///    let(_stopper, connector) = listen_and_serve_memory()?;
-///
-///    // Create and connect a client
-///    let client = Client::new_memory(&connector)?;
-/// #
-/// #     Ok(())
-/// # }
-/// ```
-pub use server::listen_and_serve_memory;
-
-/// Start a bus server using the unix socket transport. You can then connect to
-/// and use the bus from within a separate process.
-/// ```rust
-/// # use t2_bus::Client;
-/// # use t2_bus::listen_and_serve_unix;
-/// # use t2_bus::BusResult;
-/// # async fn test() -> BusResult<()> {
-///    let stopper = listen_and_serve_unix(&"my_bus".into())?;
-///
-///    // Then in a separate process, connect a client to the bus:
-///    let client = Client::new_unix(&"my_bus".into()).await?;
-/// #
-/// #     Ok(())
-/// # }
-/// ```
-pub use server::listen_and_serve_unix;
-pub use server::listen_and_serve_tcp;
-pub use transport::cbor_codec::CborCodec;
-pub use client::subscription::{RequestSubscription, Subscription, SubscriptionInto};
-pub use stopper::Stopper;
 
 pub const DEFAULT_BUS_ADDR: &str = ".bus";
 

@@ -1,5 +1,4 @@
-use crate::{err::*, CborCodec};
-
+use crate::{err::*, transport::cbor_codec::CborCodec};
 use super::protocol::Msg;
 
 pub mod cbor_codec;

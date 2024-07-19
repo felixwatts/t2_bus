@@ -2,7 +2,7 @@ use std::time::Instant;
 use futures::{stream::FuturesUnordered, StreamExt};
 use tokio::{join, task::JoinHandle};
 use super::protocol::{PublishProtocol, RequestProtocol};
-use crate::{client::Client, err::BusResult, stopper::Stopper};
+use crate::{client::Client, err::BusResult, server::{listen_and_serve_tcp, listen_and_serve_unix}, stopper::Stopper};
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 struct TestPub(pub String);
@@ -32,7 +32,7 @@ pub fn unique_addr() -> std::path::PathBuf {
 
 async fn setup() -> (Client, Client, impl Stopper) {
     let addr = unique_addr();
-    let stopper = crate::listen_and_serve_unix(&addr).unwrap();
+    let stopper = listen_and_serve_unix(&addr).unwrap();
 
     let client_1 = Client::new_unix(&addr).await.unwrap();
     let client_2 = Client::new_unix(&addr).await.unwrap();
@@ -42,7 +42,7 @@ async fn setup() -> (Client, Client, impl Stopper) {
 
 async fn setup_tcp() -> (Client, Client, impl Stopper) {
     let addr = "localhost:8999";
-    let stopper = crate::listen_and_serve_tcp(addr).await.unwrap();
+    let stopper = listen_and_serve_tcp(addr).await.unwrap();
 
     let client_1 = Client::new_tcp(addr).await.unwrap();
     let client_2 = Client::new_tcp(addr).await.unwrap();
