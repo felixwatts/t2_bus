@@ -10,7 +10,6 @@ use std::collections::HashMap;
 use tokio::time::Duration;
 use tokio::{
     sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-    task::JoinHandle,
 };
 
 const REQUEST_TIMEOUT_S: u64 = 30;

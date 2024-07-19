@@ -10,7 +10,7 @@ use super::{
 use crate::protocol::*;
 use crate::err::*;
 use crate::transport::memory_transport::MemoryConnector;
-use crate::transport::memory_transport::MemoryListener;
+
 use std::{path::PathBuf, time::Duration};
 use tokio::net::ToSocketAddrs;
 use tokio::{

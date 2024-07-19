@@ -20,7 +20,7 @@ impl RequestProtocol for HelloRequest{
 #[tokio::main]
 async fn main() -> BusResult<()> {
     // Start a bus server using the in-process memory transport
-    let(stopper,  mut connector) = listen_and_serve_memory()?;
+    let(_stopper,  mut connector) = listen_and_serve_memory()?;
 
     // Create and connect two clients
     let (mut requester, _requester_joiner) = Client::new_memory(&mut connector)?;
