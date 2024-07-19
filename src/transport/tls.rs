@@ -98,11 +98,11 @@ impl TlsListener{
     }
     
     fn load_key(path: &Path) -> BusResult<PrivateKeyDer<'static>> {
-        Ok(private_key(&mut BufReader::new(File::open(path)?))
+        private_key(&mut BufReader::new(File::open(path)?))
             .unwrap()
             .ok_or(BusError::InternalError(
                 "no private key found".to_string(),
-            ))?)
+            ))
     }
 }
 
