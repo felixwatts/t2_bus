@@ -27,7 +27,7 @@ pub(crate) enum Task {
 
 pub fn listen_and_serve_unix(addr: &PathBuf) -> BusResult<impl Stopper> {
     let listener = UnixListener::new(addr)?;
-    Ok(listen_and_serve(listener)?)
+    listen_and_serve(listener)
 }
 
 pub fn listen_and_serve_tcp(){}

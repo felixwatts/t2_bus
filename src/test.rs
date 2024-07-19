@@ -50,10 +50,10 @@ async fn setup_local() -> (
     Client, 
     impl Stopper
 ) {
-    let (stopper, mut connector) = crate::server::listen_and_serve_memory().unwrap();
+    let (stopper, connector) = crate::server::listen_and_serve_memory().unwrap();
 
-    let (client_1, _) = Client::new_memory(&mut connector).unwrap();
-    let (client_2, _) = Client::new_memory(&mut connector).unwrap();
+    let (client_1, _) = Client::new_memory(&connector).unwrap();
+    let (client_2, _) = Client::new_memory(&connector).unwrap();
 
     (client_1, client_2, stopper)
 }
@@ -228,13 +228,13 @@ async fn stress_test_pub_sub() {
     let mut client_join_handles = FuturesUnordered::new();
 
     async fn run_client(client_id: i32) -> BusResult<i32> {
-        let topic = format!("");
+        let topic = String::new();
 
         let (mut client, _client_join_handle) = crate::client::Client::new_unix(&".test".into()).await?;
         let mut sub = client.subscribe::<TestPub>(&topic).await?;
 
         let a: JoinHandle<BusResult<()>> = tokio::spawn(async move {
-            let topic = format!("");
+            let topic = String::new();
             for msg_id in 0..1u32 {
                 let msg = &TestPub(format!("{}:{}", client_id, msg_id));
                 client.publish(&topic, msg).await?;
@@ -282,7 +282,7 @@ async fn stress_test_pub_sub() {
 async fn stress_test_pub_sub_memory() {
     let start = Instant::now();
 
-    let (stopper, mut connector) = crate::server::listen_and_serve_memory().unwrap();
+    let (stopper, connector) = crate::server::listen_and_serve_memory().unwrap();
 
     let mut client_join_handles = FuturesUnordered::new();
 
@@ -290,11 +290,11 @@ async fn stress_test_pub_sub_memory() {
         client_id: i32,
         mut client: Client
     ) -> BusResult<()> {
-        let topic = format!("");
+        let topic = String::new();
         let mut sub = client.subscribe::<TestPub>(&topic).await?;
 
         let a: JoinHandle<BusResult<()>> = tokio::spawn(async move {
-            let topic = format!("");
+            let topic = String::new();
             for msg_id in 0..100u32 {
                 let msg = &TestPub(format!("{}:{}", client_id, msg_id));
                 client.publish(&topic, msg).await?;
@@ -318,7 +318,7 @@ async fn stress_test_pub_sub_memory() {
     }
 
     for client_id in 0..100 {
-        let (client, _) = crate::client::Client::new_memory(&mut connector).unwrap();
+        let (client, _) = crate::client::Client::new_memory(&connector).unwrap();
         client_join_handles.push(run_client(client_id, client));
     }
 
