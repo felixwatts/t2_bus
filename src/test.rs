@@ -34,8 +34,8 @@ async fn setup() -> (Client, Client, impl Stopper) {
     let addr = unique_addr();
     let stopper = crate::listen_and_serve_unix(&addr).unwrap();
 
-    let (client_1, _) = Client::new_unix(&addr).await.unwrap();
-    let (client_2, _) = Client::new_unix(&addr).await.unwrap();
+    let client_1 = Client::new_unix(&addr).await.unwrap();
+    let client_2 = Client::new_unix(&addr).await.unwrap();
 
     (client_1, client_2, stopper)
 }
@@ -44,8 +44,8 @@ async fn setup_tcp() -> (Client, Client, impl Stopper) {
     let addr = "localhost:8999";
     let stopper = crate::listen_and_serve_tcp(addr).await.unwrap();
 
-    let (client_1, _) = Client::new_tcp(addr).await.unwrap();
-    let (client_2, _) = Client::new_tcp(addr).await.unwrap();
+    let client_1 = Client::new_tcp(addr).await.unwrap();
+    let client_2 = Client::new_tcp(addr).await.unwrap();
 
     (client_1, client_2, stopper)
 }
@@ -57,8 +57,8 @@ async fn setup_local() -> (
 ) {
     let (stopper, connector) = crate::server::listen_and_serve_memory().unwrap();
 
-    let (client_1, _) = Client::new_memory(&connector).unwrap();
-    let (client_2, _) = Client::new_memory(&connector).unwrap();
+    let client_1 = Client::new_memory(&connector).unwrap();
+    let client_2 = Client::new_memory(&connector).unwrap();
 
     (client_1, client_2, stopper)
 }
@@ -253,7 +253,7 @@ async fn stress_test_pub_sub() {
     async fn run_client(client_id: i32) -> BusResult<i32> {
         let topic = String::new();
 
-        let (mut client, _client_join_handle) = crate::client::Client::new_unix(&".test".into()).await?;
+        let mut client = crate::client::Client::new_unix(&".test".into()).await?;
         let mut sub = client.subscribe::<TestPub>(&topic).await?;
 
         let a: JoinHandle<BusResult<()>> = tokio::spawn(async move {
@@ -336,7 +336,7 @@ async fn stress_test_pub_sub_memory() {
     }
 
     for client_id in 0..100 {
-        let (client, _) = crate::client::Client::new_memory(&connector).unwrap();
+        let client = crate::client::Client::new_memory(&connector).unwrap();
         client_join_handles.push(run_client(client_id, client));
     }
 
@@ -355,7 +355,7 @@ async fn stress_test_pub_sub_memory() {
 #[tokio::test]
 async fn test_compression() {
     let sent = vec![42u8; 10000];
-    let (mut client_1, mut client_2, _stopper) = setup().await;
+    let (client_1, client_2, _stopper) = setup().await;
 
     let mut sub = client_2.subscribe_bytes("topic").await.unwrap();
     client_1.publish_bytes("topic", sent).await.unwrap();

@@ -15,7 +15,7 @@
 //! 
 //! A client can then be created in rust code:
 //! 
-//! ```ignore
+//! ```
 //! // connect a new client to the bus listening at "my_bus"
 //! let (client, _joiner) = bus::Client::new_unix("my_bus").await.unwrap();
 //! ```

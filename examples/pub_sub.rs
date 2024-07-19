@@ -20,8 +20,8 @@ async fn main() -> BusResult<()> {
     let(stopper, connector) = listen_and_serve_memory()?;
 
     // Create and connect two clients
-    let (mut publisher, _publisher_joiner) = Client::new_memory(&connector)?;
-    let (mut subscriber, _subscriber_joiner) = Client::new_memory(&connector)?;
+    let publisher = Client::new_memory(&connector)?;
+    let subscriber = Client::new_memory(&connector)?;
 
     // Subscriber subscribes to `HelloProtocol` protocol and 'alice' topic
     let mut subscription = subscriber.subscribe::<HelloProtocol>("alice").await?;

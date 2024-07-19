@@ -21,31 +21,32 @@ use tokio::{
 const ACK_TIMEOUT_S: u64 = 5;
 
 /// A client of the bus. Provides a client-side API for all bus features including publish, subscribe, request and respond.
-#[derive(Clone)]
+// #[derive(Clone)]
 pub struct Client {
     task_sender: tokio::sync::mpsc::UnboundedSender<Task>,
+    core_join_handle: JoinHandle<BusResult<()>>
 }
 
 impl Client {
-    fn new(transport: impl Transport<ProtocolClient, ProtocolServer>) -> BusResult<(Client, JoinHandle<BusResult<()>>)>
+    fn new(transport: impl Transport<ProtocolClient, ProtocolServer>) -> BusResult<Client>
     {
         let (task_sender, task_receiver) = tokio::sync::mpsc::unbounded_channel();
 
-        let join_handle = ClientCore::start(transport, task_receiver)?;
+        let core_join_handle = ClientCore::start(transport, task_receiver)?;
 
-        let client = Client { task_sender };
+        let client = Client { task_sender, core_join_handle };
 
-        Ok((client, join_handle))
+        Ok(client)
     }
 
     /// Create a new bus client connected to the bus at the specified unix socket address
-    pub async fn new_tcp(addr: impl ToSocketAddrs) -> BusResult<(Client, JoinHandle<BusResult<()>>)> {
+    pub async fn new_tcp(addr: impl ToSocketAddrs) -> BusResult<Client> {
         let transport = connect_tcp(addr).await?;
         Client::new(transport)
     }
 
     /// Create a new bus client connected to the bus at the specified unix socket address
-    pub async fn new_unix(addr: &PathBuf) -> BusResult<(Client, JoinHandle<BusResult<()>>)> {
+    pub async fn new_unix(addr: &PathBuf) -> BusResult<Client> {
         let transport = crate::transport::unix::connect_unix(addr).await?;
         Client::new(transport)
     }
@@ -53,7 +54,7 @@ impl Client {
     /// Create a new bus client connected an in-process bus using the specified memory transport listener
     pub fn new_memory(
         connector: &MemoryConnector,
-    ) -> BusResult<(Client, JoinHandle<BusResult<()>>)> {
+    ) -> BusResult<Client> {
         let transport = connector.connect()?;
         Client::new(transport)
     }
@@ -73,12 +74,10 @@ impl Client {
     }
 
     /// Cleanly shutdown this client
-    pub async fn stop(&mut self, join_handle: Option<JoinHandle<BusResult<()>>>) -> BusResult<()> {
+    pub async fn stop(self) -> BusResult<()> {
         let _ = self.task_sender.send(Task::Stop); // ignore error if channel closed
-        match join_handle {
-            Some(join_handle) => join_handle.await?,
-            None => Ok(()),
-        }
+        self.core_join_handle.await??;
+        Ok(())
     }
 
     /// Start serving the specified protocol and topic.
@@ -87,7 +86,7 @@ impl Client {
     /// Drop the `RequestSubscription` to stop serving.
     /// Errors if the specified protocol and topic is already being served by someone else.
     pub async fn serve<TProtocol>(
-        &mut self,
+        & self,
         topic: &str,
     ) -> BusResult<RequestSubscription<TProtocol>>
     where
@@ -131,7 +130,7 @@ impl Client {
     /// Make a request to the given protocol and topic. Returns the response or an error if
     /// no one is serving on the protocol and topic.
     pub async fn request<TProtocol>(
-        &mut self,
+        &self,
         topic: &str,
         req: &TProtocol,
     ) -> BusResult<TProtocol::Rsp>
@@ -198,7 +197,7 @@ impl Client {
     /// Respond to a received request. The `request_id` parameter should correspond to that of a received request.
     /// The given response will be routed to the original requester.
     pub async fn respond<TProtocol>(
-        &mut self,
+        &self,
         request_id: MsgId,
         rsp: &TProtocol::Rsp,
     ) -> BusResult<()>
@@ -212,7 +211,7 @@ impl Client {
     /// Subscribe to a given protocol and topic. Values published on the protocol and topic will be routed to you
     /// via the returned `Subscription`. Drop the `Subscription` to unsubscribe.
     pub async fn subscribe<TProtocol>(
-        &mut self,
+        &self,
         topic: &str,
     ) -> BusResult<Subscription<(String, TProtocol)>>
     where
@@ -231,7 +230,7 @@ impl Client {
     /// if you want to combine several subscriptions into a single channel.
     /// Returns a `SubscriptionInto` which can be dropped to unsubscribe.
     pub async fn subscribe_into<TProtocol>(
-        &mut self,
+        &self,
         topic: &str,
         callback_sender: UnboundedSender<(String, TProtocol)>,
     ) -> BusResult<SubscriptionInto>
@@ -280,7 +279,7 @@ impl Client {
     /// payloads are `Vec<u8>`s that should be encoded according to the protocol. Useful when the protocol
     /// is not known at compile time.
     pub async fn subscribe_bytes(
-        &mut self,
+        &self,
         topic_with_prefix: &str,
     ) -> BusResult<Subscription<PubMsg>> {
         let (sender, receiver) = unbounded_channel::<PubMsg>();
@@ -293,7 +292,7 @@ impl Client {
     /// if you want to combine several subscriptions into a single channel.
     /// Returns a `SubscriptionInto` which can be dropped to unsubscribe.
     pub async fn subscribe_bytes_into(
-        &mut self,
+        &self,
         topic_with_prefix: &str,
         sender: UnboundedSender<PubMsg>,
     ) -> BusResult<SubscriptionInto> {
@@ -317,7 +316,7 @@ impl Client {
     }
 
     /// Publish the given message at the given topic. Returns the number of receiving clients.
-    pub async fn publish<TProtocol>(&mut self, topic: &str, msg: &TProtocol) -> BusResult<usize>
+    pub async fn publish<TProtocol>(&self, topic: &str, msg: &TProtocol) -> BusResult<usize>
     where
         TProtocol: PublishProtocol,
     {
@@ -333,7 +332,7 @@ impl Client {
     /// payloads are `Vec<u8>`s that should be encoded according to the protocol. Useful when the protocol
     /// is not known at compile time.
     pub async fn publish_bytes(
-        &mut self,
+        &self,
         topic_with_prefix: &str,
         payload: Vec<u8>,
     ) -> BusResult<usize> {
@@ -354,7 +353,7 @@ impl Client {
     }
 
     async fn _respond(
-        &mut self,
+        &self,
         req_id: MsgId,
         status: RspMsgStatus,
         payload: Vec<u8>,
