@@ -18,7 +18,7 @@ async fn main() {
 
 async fn run() -> BusResult<()> {
     let opt = BusOpt::from_args();
-    let stopper = listen_and_serve_unix(&opt.addr)?;
+    let stopper = t2_bus::transport::unix::serve(&opt.addr)?;
     stopper.join().await?;
     Ok(())
 }

@@ -12,7 +12,7 @@ pub trait Stopper{
     fn join(self) -> impl Future<Output=BusResult<()>> + Send;
 }
 
-pub(crate) struct BasicStopper{
+pub struct BasicStopper{
     stop_sender: tokio::sync::oneshot::Sender<()>, 
     join_handle: JoinHandle::<BusResult::<()>>, 
 }
@@ -36,7 +36,7 @@ impl Stopper for BasicStopper{
     }
 }
 
-pub(crate) struct MultiStopper{
+pub struct MultiStopper{
     stoppers: Vec<BasicStopper>
 }
 

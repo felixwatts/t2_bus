@@ -1,10 +1,38 @@
 use futures::{Sink, Stream};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use crate::{
-    err::*, protocol::{Msg, ProtocolClient, ProtocolServer}, server::listen::Listener
+    client::Client, err::*, prelude::Stopper, protocol::{Msg, ProtocolClient, ProtocolServer}, server::listen::{listen_and_serve, Listener}
 };
 
 use super::Transport;
+
+/// Start a bus server using the in-process memory transport. You can then connect to
+/// and use the bus from within the same rust program.
+/// ```rust
+/// # use t2_bus::prelude::*;
+/// # #[tokio::main]
+/// # async fn main() -> BusResult<()> {
+///    let(_stopper, connector) = listen_and_serve_memory()?;
+///
+///    // Create and connect a client
+///    let client = Client::new_memory(&connector)?;
+/// #
+/// #     Ok(())
+/// # }
+/// ```
+pub fn serve() -> BusResult<(impl Stopper, MemoryConnector)>{
+    let (listener, connector) = MemoryListener::new();
+    let stopper = listen_and_serve(listener)?;
+    Ok((stopper, connector))
+}
+
+/// Create a new bus client connected an in-process bus using the specified memory transport listener
+pub fn connect(
+    connector: &MemoryConnector,
+) -> BusResult<Client> {
+    let transport = connector.connect()?;
+    Client::new(transport)
+}
 
 pub struct MemoryTransport<TSend, TRecv> {
     sender: UnboundedSender<BusResult<Msg<TSend>>>,

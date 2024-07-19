@@ -1,9 +1,9 @@
 use std::convert::TryFrom;
-use std::fmt::format;
+
 use std::fs::File;
 use std::io::BufReader;
-use std::os::unix::net::SocketAddr;
-use std::path;
+
+
 use std::path::Path;
 use std::sync::Arc;
 
@@ -13,7 +13,7 @@ use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio_rustls::rustls::pki_types::CertificateDer;
 use tokio_rustls::rustls::pki_types::PrivateKeyDer;
 use tokio_rustls::rustls::pki_types::ServerName;
-use tokio_rustls::rustls::server::danger::ClientCertVerifier;
+
 use tokio_rustls::rustls::ClientConfig;
 use tokio_rustls::rustls::RootCertStore;
 use tokio_rustls::rustls::ServerConfig;
@@ -22,12 +22,20 @@ use tokio_rustls::TlsConnector;
 use tokio_rustls::client::TlsStream;
 use tokio_util::codec::Framed;
 
+use crate::server::listen;
+use crate::server::listen::listen_and_serve;
+use crate::stopper::MultiStopper;
 use crate::{protocol::{Msg, ProtocolClient, ProtocolServer}, server::listen::Listener, err::BusResult, transport::CborCodec};
 
 use super::BusError;
 use super::Transport;
 
-pub(crate) async fn connect_tls (
+pub async fn serve(addr: impl ToSocketAddrs, certs_pem_file: &Path, key_file: &Path) -> BusResult<MultiStopper> {
+    let listener = TlsListener::new(addr, certs_pem_file, key_file).await?;
+    listen_and_serve(listener)
+}
+
+pub async fn connect (
     host: &str,
     port: u16,
     ca_file: &Path
@@ -57,7 +65,7 @@ pub(crate) async fn connect_tls (
     Ok(transport)
 }
 
-pub(crate) struct TlsListener{
+struct TlsListener{
     listener: tokio::net::TcpListener,
     tls_acceptor: TlsAcceptor
 }
