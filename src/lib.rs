@@ -16,19 +16,26 @@
 //! A client can then be created in rust code:
 //! 
 //! ```
+//! # use t2_bus::Client;
+//! # async fn connect_client() {
 //! // connect a new client to the bus listening at "my_bus"
-//! let (client, _joiner) = bus::Client::new_unix("my_bus").await.unwrap();
+//! let client = Client::new_unix(&"my_bus".into()).await.unwrap();
+//! # }
 //! ```
 //! 
 //! ## Intra-process mode
 //! 
 //! Alternatively the bus can operate in the same process as the clients. In this case messages will be passed by a memory queue, which is significantly faster.
 //! 
-//! ```ignore
+//! ```
+//! # use t2_bus::listen_and_serve_memory;
+//! # use t2_bus::Client;
+//! # fn test() {
 //! // start an in process bus service
-//! let(mut listener, _stopper, _joiner) = bus::serve_bus_in_process().unwrap();
+//! let (stopper, connector) = listen_and_serve_memory().unwrap();
 //! // connect a new client to the bus
-//! let (client, _joiner) = bus::Client::new_memory(&mut listener).unwrap();
+//! let client = Client::new_memory(&connector).unwrap();
+//! # }
 //! ```
 //! 
 //! ## Publish/Subscribe
@@ -37,9 +44,10 @@
 //! 
 //! ```
 //! use serde::{Deserialize, Serialize};
-//! use bus::serve_bus_in_process;
-//! use bus::Client;
-//! use bus::PublishProtocol;
+//! use t2_bus::listen_and_serve_memory;
+//! use t2_bus::Client;
+//! use t2_bus::PublishProtocol;
+//! use t2_bus::{BusError, BusResult};
 //! 
 //! // Define a protocol message type
 //! #[derive(Clone, Deserialize, Serialize, Debug)]
@@ -53,16 +61,25 @@
 //!     }
 //! }
 //! 
-//! // Subscribe for all `HelloProtocol` type messages published on topics matching "alice"
-//! let mut subscription = client_1.subscribe::<HelloProtocol>("alice").await?;
+//! async fn test() -> BusResult<()> {
+//!     # let (stopper, connector) = listen_and_serve_memory()?;
 //! 
-//! // Publish a `HelloProtocol` type message to all subscribers for topics matching "alice"
-//! client_2.publish("alice", &HelloProtocol("Hello Alice".to_string())).await?;
+//!     # let client_1 = Client::new_memory(&connector)?;
+//!     # let client_2 = Client::new_memory(&connector)?;
 //! 
-//! // Wait to receive a message on this subscription
-//! let (topic, message) = subscription.recv().await?;
+//!     // Subscribe for all `HelloProtocol` type messages published on topics matching "alice"
+//!     let mut subscription = client_1.subscribe::<HelloProtocol>("alice").await?;
 //! 
-//! assert_eq!(message.0, "Hello Alice".to_string());
+//!     // Publish a `HelloProtocol` type message to all subscribers for topics matching "alice"
+//!     client_2.publish("alice", &HelloProtocol("Hello Alice".to_string())).await?;
+//! 
+//!     // Wait to receive a message on this subscription
+//!     let (topic, message) = subscription.recv().await.ok_or(BusError::ChannelClosed)?;
+//! 
+//!     assert_eq!(message.0, "Hello Alice".to_string());
+//! 
+//!     Ok(())
+//! }
 //! 
 //! // When the subscription object is dropped the subscription ends
 //! ```
@@ -104,7 +121,13 @@
 //! 
 //! Topic wildcards are not supported for either serving or requesting.
 //! 
-//! ```ignore
+//! ```
+//! # use t2_bus::Client;
+//! # use t2_bus::listen_and_serve_memory;
+//! # use t2_bus::BusResult;
+//! # use t2_bus::RequestProtocol;
+//! # use serde::{Serialize, Deserialize};
+//! 
 //! // Define protocol message types for request and response
 //! #[derive(Clone, Deserialize, Serialize, Debug)]
 //! struct HelloRequest(String);
@@ -121,6 +144,14 @@
 //!     }
 //! }
 //! 
+//! # #[tokio::main]
+//! # async fn main() -> BusResult<()> {
+//! 
+//! # let (stopper, connector) = listen_and_serve_memory()?;
+//! 
+//! # let client_1 = Client::new_memory(&connector)?;
+//! # let client_2 = Client::new_memory(&connector)?;
+//! 
 //! // A client begins to serve the `HelloProtocol` at topic ''
 //! let mut request_subscription = client_1.serve::<HelloRequest>("").await?;
 //!
@@ -128,10 +159,14 @@
 //! let response = client_2.request("", &HelloRequest("Alice".to_string())).await?;
 //! 
 //! // The serving client receives the request...
-//! let (_topic, request_id, request) = request_subscription.recv().await?;
-//!
+//! let (_topic, request_id, request) = request_subscription.recv().await.unwrap() {
+//!     
 //! // ...and sends the response
 //! client_1.respond::<HelloRequest>(request_id, &HelloResponse(format!("Hello {}", &request.0))).await?;
+//! 
+//! # Ok(())
+//! 
+//! # }
 //! ```
 
 pub(crate) mod client;
@@ -160,11 +195,15 @@ pub use client::Client;
 /// Start a bus server using the in-process memory transport. You can then connect to
 /// and use the bus from within the same rust program.
 /// ```rust
-/// # fn main() -> crate::err::BusResult<()> {
+/// # use t2_bus::Client;
+/// # use t2_bus::listen_and_serve_memory;
+/// # use t2_bus::BusResult;
+/// # #[tokio::main]
+/// # async fn main() -> BusResult<()> {
 ///    let(_stopper, connector) = listen_and_serve_memory()?;
 ///
 ///    // Create and connect a client
-///    let (mut client, _client_joiner) = Client::new_memory(&connector)?;
+///    let client = Client::new_memory(&connector)?;
 /// #
 /// #     Ok(())
 /// # }
@@ -174,11 +213,14 @@ pub use server::listen_and_serve_memory;
 /// Start a bus server using the unix socket transport. You can then connect to
 /// and use the bus from within a separate process.
 /// ```rust
-/// # fn main() -> crate::err::BusResult<()> {
-///    let _stopper = serve_bus_unix_socket("my_bus")?;
+/// # use t2_bus::Client;
+/// # use t2_bus::listen_and_serve_unix;
+/// # use t2_bus::BusResult;
+/// # async fn test() -> BusResult<()> {
+///    let stopper = listen_and_serve_unix(&"my_bus".into())?;
 ///
-///    // Then is a separate process, connect a client to the bus:
-///    let (mut client, _client_joiner) = Client::new_unix("my_bus")?;
+///    // Then in a separate process, connect a client to the bus:
+///    let client = Client::new_unix(&"my_bus".into()).await?;
 /// #
 /// #     Ok(())
 /// # }

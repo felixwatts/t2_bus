@@ -96,7 +96,7 @@ async fn test_subscribe_publish_local() {
     assert_eq!("test/a/b/c", &topic);
     assert_eq!(&"d", &payload.0);
 
-    stopper.stop().await.unwrap();
+    stopper.stop().await.expect_err("Expect channel closed");
 }
 
 #[tokio::test]
