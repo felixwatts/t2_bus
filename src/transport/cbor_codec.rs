@@ -1,12 +1,10 @@
 use crate::err::*;
-use byteorder::{BigEndian, WriteBytesExt};
 use bytes::Buf;
 use bytes::BufMut;
 use serde::{de::DeserializeOwned, Serialize};
-use std::io::Write;
 use std::marker::PhantomData;
 
-// The internal codec used within the bus. Can be useful in conjunction with `Client::publish_bytes`, `Client::publish_bytes` and `Client::request_bytes`.
+/// The internal codec used within the bus. Can be useful in conjunction with `Client::publish_bytes`, `Client::request_bytes`, `Client::request_bytes_into` and `Client::subscribe_bytes_into`.
 #[derive(Default)]
 pub struct CborCodec<TEncode, TDecode> {
     msg_len: Option<usize>,
@@ -24,14 +22,6 @@ where
             d: PhantomData {},
             msg_len: None,
         }
-    }
-
-    pub fn encode_to_stream(item: &TEncode, stream: &mut std::fs::File) -> BusResult<usize> {
-        // TODO generalize to any Sink
-        let bytes = serde_cbor::ser::to_vec_packed(&item)?;
-        stream.write_u32::<BigEndian>(bytes.len() as u32)?;
-        stream.write_all(&bytes)?;
-        Ok(4 + bytes.len())
     }
 }
 

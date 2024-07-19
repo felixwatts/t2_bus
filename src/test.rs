@@ -1,14 +1,8 @@
 use std::time::Instant;
-
 use futures::{stream::FuturesUnordered, StreamExt};
 use tokio::{join, task::JoinHandle};
-
-use super::{
-    protocol::{PublishProtocol, RequestProtocol}
-};
-use crate::transport::{unix_socket_transport::{UnixBusStopper, listen}};
-
-use crate::{client::Client, err::BusResult};
+use super::protocol::{PublishProtocol, RequestProtocol};
+use crate::{client::Client, err::BusResult, stopper::Stopper};
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 struct TestPub(pub String);
@@ -36,9 +30,9 @@ pub fn unique_addr() -> std::path::PathBuf {
     std::path::PathBuf::from(format!("/tmp/{}", uuid::Uuid::new_v4()))
 }
 
-async fn setup() -> (Client, Client, UnixBusStopper) {
+async fn setup() -> (Client, Client, impl Stopper) {
     let addr = unique_addr();
-    let stopper = crate::transport::unix_socket_transport::listen_and_serve(&addr).unwrap();
+    let stopper = crate::listen_and_serve_unix(&addr).unwrap();
 
     let (client_1, _) = Client::new_unix(&addr).await.unwrap();
     let (client_2, _) = Client::new_unix(&addr).await.unwrap();
@@ -46,23 +40,32 @@ async fn setup() -> (Client, Client, UnixBusStopper) {
     (client_1, client_2, stopper)
 }
 
+async fn setup_tcp() -> (Client, Client, impl Stopper) {
+    let addr = "localhost:8999";
+    let stopper = crate::listen_and_serve_tcp(addr).await.unwrap();
+
+    let (client_1, _) = Client::new_tcp(addr).await.unwrap();
+    let (client_2, _) = Client::new_tcp(addr).await.unwrap();
+
+    (client_1, client_2, stopper)
+}
+
 async fn setup_local() -> (
     Client, 
     Client, 
-    tokio::sync::oneshot::Sender<()>, 
-    JoinHandle::<BusResult::<()>>
+    impl Stopper
 ) {
-    let (mut listener, stopper, join_handle) = crate::transport::memory_transport::listen_and_serve().unwrap();
+    let (stopper, connector) = crate::server::listen_and_serve_memory().unwrap();
 
-    let (client_1, _) = Client::new_memory(&mut listener).unwrap();
-    let (client_2, _) = Client::new_memory(&mut listener).unwrap();
+    let (client_1, _) = Client::new_memory(&connector).unwrap();
+    let (client_2, _) = Client::new_memory(&connector).unwrap();
 
-    (client_1, client_2, stopper, join_handle)
+    (client_1, client_2, stopper)
 }
 
 #[tokio::test]
-async fn test_subscribe_publish_local() {
-    let (mut client_1, mut client_2, stopper, join_handle) = setup_local().await;
+async fn test_tcp() {
+    let (mut client_1, mut client_2, stopper) = setup_tcp().await;
 
     let mut rx = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
 
@@ -75,8 +78,25 @@ async fn test_subscribe_publish_local() {
     assert_eq!("test/a/b/c", &topic);
     assert_eq!(&"d", &payload.0);
 
-    stopper.send(()).unwrap();
-    join_handle.await.unwrap().unwrap();
+    stopper.stop().await.unwrap();
+}
+
+#[tokio::test]
+async fn test_subscribe_publish_local() {
+    let (mut client_1, mut client_2, stopper) = setup_local().await;
+
+    let mut rx = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
+
+    client_2
+        .publish("a/b/c", &TestPub("d".into()))
+        .await
+        .unwrap();
+    let (topic, payload) = rx.recv().await.unwrap();
+
+    assert_eq!("test/a/b/c", &topic);
+    assert_eq!(&"d", &payload.0);
+
+    stopper.stop().await.unwrap();
 }
 
 #[tokio::test]
@@ -223,20 +243,21 @@ async fn test_unserve() {
 async fn stress_test_pub_sub() {
     let start = Instant::now();
 
-    let mut core = crate::server::Core::new();
-    let (listener_stop_sender, listener_join_handle) = listen(&".test".into(), core.get_task_sender()).unwrap();
-    let _core_join_handle = core.spawn().unwrap();
+    // let mut core = Core::new();
+    let listener = crate::transport::unix::UnixListener::new(&".test".into()).unwrap();
+    let stopper = crate::server::listen::listen_and_serve(listener).unwrap();
+    // let _core_join_handle = core.spawn().unwrap();
 
     let mut client_join_handles = FuturesUnordered::new();
 
     async fn run_client(client_id: i32) -> BusResult<i32> {
-        let topic = format!("");
+        let topic = String::new();
 
         let (mut client, _client_join_handle) = crate::client::Client::new_unix(&".test".into()).await?;
         let mut sub = client.subscribe::<TestPub>(&topic).await?;
 
         let a: JoinHandle<BusResult<()>> = tokio::spawn(async move {
-            let topic = format!("");
+            let topic = String::new();
             for msg_id in 0..1u32 {
                 let msg = &TestPub(format!("{}:{}", client_id, msg_id));
                 client.publish(&topic, msg).await?;
@@ -263,20 +284,14 @@ async fn stress_test_pub_sub() {
         client_join_handles.push(run_client(client_id));
     }
 
-    loop {
-        match client_join_handles.next().await {
-            Some(result) => {
-                result.unwrap();
-            }
-            None => break,
-        }
+    while let Some(result) = client_join_handles.next().await {
+        result.unwrap();
     }
 
     let end = Instant::now();
     let duration = end - start;
 
-    listener_stop_sender.send(()).unwrap();
-    listener_join_handle.await.unwrap().unwrap();
+    stopper.stop().await.unwrap();
 
     println!("{}", duration.as_millis());
 }
@@ -285,11 +300,7 @@ async fn stress_test_pub_sub() {
 async fn stress_test_pub_sub_memory() {
     let start = Instant::now();
 
-    let (
-        mut memory_listener, 
-        stop_sender, 
-        bus_join_handle
-    ) = crate::transport::memory_transport::listen_and_serve().unwrap();
+    let (stopper, connector) = crate::server::listen_and_serve_memory().unwrap();
 
     let mut client_join_handles = FuturesUnordered::new();
 
@@ -297,11 +308,11 @@ async fn stress_test_pub_sub_memory() {
         client_id: i32,
         mut client: Client
     ) -> BusResult<()> {
-        let topic = format!("");
+        let topic = String::new();
         let mut sub = client.subscribe::<TestPub>(&topic).await?;
 
         let a: JoinHandle<BusResult<()>> = tokio::spawn(async move {
-            let topic = format!("");
+            let topic = String::new();
             for msg_id in 0..100u32 {
                 let msg = &TestPub(format!("{}:{}", client_id, msg_id));
                 client.publish(&topic, msg).await?;
@@ -325,17 +336,12 @@ async fn stress_test_pub_sub_memory() {
     }
 
     for client_id in 0..100 {
-        let (client, _) = crate::client::Client::new_memory(&mut memory_listener).unwrap();
+        let (client, _) = crate::client::Client::new_memory(&connector).unwrap();
         client_join_handles.push(run_client(client_id, client));
     }
 
-    loop {
-        match client_join_handles.next().await {
-            Some(result) => {
-                result.unwrap();
-            }
-            None => break,
-        }
+    while let Some(result) = client_join_handles.next().await {
+        result.unwrap();
     }
 
     let end = Instant::now();
@@ -343,8 +349,7 @@ async fn stress_test_pub_sub_memory() {
 
     println!("{}", duration.as_millis());
 
-    stop_sender.send(()).unwrap();
-    bus_join_handle.await.unwrap().unwrap();
+    stopper.stop().await.unwrap();
 }
 
 #[tokio::test]

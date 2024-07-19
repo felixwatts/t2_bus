@@ -30,51 +30,51 @@ pub trait RequestProtocol: Serialize + DeserializeOwned + Send + 'static {
 pub type MsgId = u32;
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
-pub struct MsgSub {
+pub struct SubMsg {
     pub topic: String,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
-pub struct MsgUnsub {
+pub struct UnsubMsg {
     pub topic: String,
 }
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
-pub struct MsgPub {
+pub struct PubMsg {
     pub topic: String,
     pub payload: Payload,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
-pub struct MsgSrv {
+pub struct SrvMsg {
     pub topic: String,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
-pub struct MsgUnsrv {
+pub struct UnsrvMsg {
     pub topic: String,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
-pub struct MsgReq {
+pub struct ReqMsg {
     pub topic: String,
     pub payload: Payload,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
-pub enum MsgRspStatus {
+pub enum RspMsgStatus {
     Ok,
     Timeout,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
-pub struct MsgRsp {
+pub struct RspMsg {
     pub req_id: MsgId,
-    pub status: MsgRspStatus,
+    pub status: RspMsgStatus,
     pub payload: Payload,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
-pub struct MsgAck {
+pub struct AckMsg {
     pub msg_id: MsgId,
     pub err: Option<BusError>,
     pub num_recipients: Option<usize>, // TODO usize in msg
@@ -83,23 +83,23 @@ pub struct MsgAck {
 // The message type sent from the client to the server
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 pub enum ProtocolClient {
-    Sub(MsgSub),
-    Pub(MsgPub),
-    Srv(MsgSrv),
-    Req(MsgReq),
-    Rsp(MsgRsp),
-    Unsub(MsgUnsub),
-    Unsrv(MsgUnsrv),
+    Sub(SubMsg),
+    Pub(PubMsg),
+    Srv(SrvMsg),
+    Req(ReqMsg),
+    Rsp(RspMsg),
+    Unsub(UnsubMsg),
+    Unsrv(UnsrvMsg),
     Stop,
 }
 
 // The message type sent from the server to the client
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 pub enum ProtocolServer {
-    Pub(MsgPub),
-    Req(MsgReq),
-    Rsp(MsgRsp),
-    Ack(MsgAck),
+    Pub(PubMsg),
+    Req(ReqMsg),
+    Rsp(RspMsg),
+    Ack(AckMsg),
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
