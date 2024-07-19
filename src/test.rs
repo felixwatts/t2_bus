@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 use futures::{stream::FuturesUnordered, StreamExt};
 use tokio::{join, task::JoinHandle};
 use super::protocol::{PublishProtocol, RequestProtocol};
-use crate::{client::Client, err::{BusError, BusResult}, server::{listen_and_serve_tcp, listen_and_serve_unix}, stopper::Stopper};
+use crate::{client::Client, err::{BusError, BusResult}, stopper::Stopper};
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 struct TestPub(pub String);
@@ -32,20 +32,20 @@ pub fn unique_addr() -> std::path::PathBuf {
 
 async fn setup() -> (Client, Client, impl Stopper) {
     let addr = unique_addr();
-    let stopper = listen_and_serve_unix(&addr).unwrap();
+    let stopper = crate::transport::unix::serve(&addr).unwrap();
 
-    let client_1 = Client::new_unix(&addr).await.unwrap();
-    let client_2 = Client::new_unix(&addr).await.unwrap();
+    let client_1 = crate::transport::unix::connect(&addr).await.unwrap();
+    let client_2 = crate::transport::unix::connect(&addr).await.unwrap();
 
     (client_1, client_2, stopper)
 }
 
 async fn setup_tcp() -> (Client, Client, impl Stopper) {
     let addr = "localhost:8999";
-    let stopper = listen_and_serve_tcp(addr).await.unwrap();
+    let stopper = crate::transport::tcp::serve(addr).await.unwrap();
 
-    let client_1 = Client::new_tcp(addr).await.unwrap();
-    let client_2 = Client::new_tcp(addr).await.unwrap();
+    let client_1 = crate::transport::tcp::connect(addr).await.unwrap();
+    let client_2 = crate::transport::tcp::connect(addr).await.unwrap();
 
     (client_1, client_2, stopper)
 }
@@ -55,10 +55,10 @@ async fn setup_local() -> (
     Client, 
     impl Stopper
 ) {
-    let (stopper, connector) = crate::server::listen_and_serve_memory().unwrap();
+    let (stopper, connector) = crate::transport::memory::serve().unwrap();
 
-    let client_1 = Client::new_memory(&connector).unwrap();
-    let client_2 = Client::new_memory(&connector).unwrap();
+    let client_1 = crate::transport::memory::connect(&connector).unwrap();
+    let client_2 = crate::transport::memory::connect(&connector).unwrap();
 
     (client_1, client_2, stopper)
 }
@@ -253,7 +253,7 @@ async fn stress_test_pub_sub() {
     async fn run_client(client_id: i32) -> BusResult<i32> {
         let topic = String::new();
 
-        let client = crate::client::Client::new_unix(&".test".into()).await?;
+        let client = crate::transport::unix::connect(&".test".into()).await?;
         let mut sub = client.subscribe::<TestPub>(&topic).await?;
 
         let a: JoinHandle<BusResult<()>> = tokio::spawn(async move {
@@ -300,7 +300,7 @@ async fn stress_test_pub_sub() {
 async fn stress_test_pub_sub_memory() {
     let start = Instant::now();
 
-    let (stopper, connector) = crate::server::listen_and_serve_memory().unwrap();
+    let (stopper, connector) = crate::transport::memory::serve().unwrap();
 
     let mut client_join_handles = FuturesUnordered::new();
 
@@ -336,7 +336,7 @@ async fn stress_test_pub_sub_memory() {
     }
 
     for client_id in 0..100 {
-        let client = crate::client::Client::new_memory(&connector).unwrap();
+        let client = crate::transport::memory::connect(&connector).unwrap();
         client_join_handles.push(run_client(client_id, client));
     }
 

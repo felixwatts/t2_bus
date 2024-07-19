@@ -16,6 +16,7 @@ use tokio_rustls::rustls::ServerConfig;
 use tokio_rustls::TlsAcceptor;
 use tokio_util::codec::Framed;
 
+use crate::client::Client;
 use crate::server::listen::listen_and_serve;
 use crate::stopper::MultiStopper;
 use crate::{protocol::{Msg, ProtocolClient, ProtocolServer}, server::listen::Listener, err::BusResult, transport::CborCodec};
@@ -41,12 +42,13 @@ pub async fn serve(addr: impl ToSocketAddrs) -> BusResult<MultiStopper> {
     listen_and_serve(listener)
 }
 
-pub async fn connect_tcp (
+pub async fn connect (
     addr: impl ToSocketAddrs,
-) -> BusResult<Framed<TcpStream, CborCodec<Msg<ProtocolClient>, Msg<ProtocolServer>>>> {
+) -> BusResult<Client> {
     let socket = tokio::net::TcpStream::connect(addr).await?;
     let transport = tokio_util::codec::Framed::new(socket, CborCodec::new());
-    Ok(transport)
+    let client = Client::new(transport)?;
+    Ok(client)
 }
 
 struct TcpListener(tokio::net::TcpListener);
