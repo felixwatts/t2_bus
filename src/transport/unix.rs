@@ -5,7 +5,7 @@ use std::{path::PathBuf};
 
 
 use tokio::{
-    net::{TcpStream, ToSocketAddrs, UnixStream},
+    net::{UnixStream},
 };
 use tokio_util::codec::Framed;
 
