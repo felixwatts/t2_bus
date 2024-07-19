@@ -65,7 +65,7 @@ async fn setup_local() -> (
 
 #[tokio::test]
 async fn test_tcp() {
-    let (mut client_1, mut client_2, stopper) = setup_tcp().await;
+    let (client_1, client_2, stopper) = setup_tcp().await;
 
     let mut rx = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
 
@@ -83,7 +83,7 @@ async fn test_tcp() {
 
 #[tokio::test]
 async fn test_subscribe_publish_local() {
-    let (mut client_1, mut client_2, stopper) = setup_local().await;
+    let (client_1, client_2, stopper) = setup_local().await;
 
     let mut rx = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
 
@@ -101,7 +101,7 @@ async fn test_subscribe_publish_local() {
 
 #[tokio::test]
 async fn test_subscribe_publish() {
-    let (mut client_1, mut client_2, _stopper) = setup().await;
+    let (client_1, client_2, _stopper) = setup().await;
 
     let mut rx = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
 
@@ -117,7 +117,7 @@ async fn test_subscribe_publish() {
 
 #[tokio::test]
 async fn test_subscribe_publish_empty_topic() {
-    let (mut client_1, mut client_2, _stopper) = setup().await;
+    let (client_1, client_2, _stopper) = setup().await;
 
     let mut rx = client_1.subscribe::<TestPub>("").await.unwrap();
 
@@ -130,7 +130,7 @@ async fn test_subscribe_publish_empty_topic() {
 
 #[tokio::test]
 async fn test_unsubscribe() {
-    let (mut client_1, mut client_2, _stopper) = setup().await;
+    let (client_1, client_2, _stopper) = setup().await;
 
     {
         let _subscription = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
@@ -154,7 +154,7 @@ async fn test_unsubscribe() {
 
 #[tokio::test]
 async fn test_unsubscribe_2() {
-    let (mut client_1, mut client_2, _stopper) = setup().await;
+    let (client_1, client_2, _stopper) = setup().await;
 
     {
         let _ = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
@@ -179,7 +179,7 @@ async fn test_unsubscribe_2() {
 
 #[tokio::test]
 async fn test_request_response() {
-    let (mut client_1, mut client_2, _stopper) = setup().await;
+    let (client_1, client_2, _stopper) = setup().await;
 
     let mut rx = client_1.serve::<TestReq>("ping").await.unwrap();
 
@@ -207,7 +207,7 @@ async fn test_request_response() {
 
 #[tokio::test]
 async fn test_unserve() {
-    let (mut client_1, mut client_2, _stopper) = setup().await;
+    let (client_1, client_2, _stopper) = setup().await;
 
     {
         let _request_subscription = client_2.serve::<TestReq>("ping").await.unwrap();
@@ -253,7 +253,7 @@ async fn stress_test_pub_sub() {
     async fn run_client(client_id: i32) -> BusResult<i32> {
         let topic = String::new();
 
-        let mut client = crate::client::Client::new_unix(&".test".into()).await?;
+        let client = crate::client::Client::new_unix(&".test".into()).await?;
         let mut sub = client.subscribe::<TestPub>(&topic).await?;
 
         let a: JoinHandle<BusResult<()>> = tokio::spawn(async move {
@@ -306,7 +306,7 @@ async fn stress_test_pub_sub_memory() {
 
     async fn run_client(
         client_id: i32,
-        mut client: Client
+        client: Client
     ) -> BusResult<()> {
         let topic = String::new();
         let mut sub = client.subscribe::<TestPub>(&topic).await?;
