@@ -1,8 +1,8 @@
 use crate::err::*;
 use regex::Regex;
 
-pub const WILDCARD: &str = "*";
-pub const DOUBLE_WILDCARD: &str = "**";
+pub(crate) const WILDCARD: &str = "*";
+pub(crate) const DOUBLE_WILDCARD: &str = "**";
 
 lazy_static! {
     static ref RGX_TOPIC: Regex =

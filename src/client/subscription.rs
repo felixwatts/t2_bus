@@ -1,5 +1,5 @@
 use super::core::{Task, TaskUnsrv, TaskUnsub};
-use crate::protocol::{MsgId, MsgUnsrv, MsgUnsub};
+use crate::protocol::{MsgId, UnsrvMsg, UnsubMsg};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 /// Represents a subscription to a protocol `T` and topic. Drop the `Subscription` to unsubscribe.
@@ -9,7 +9,7 @@ pub struct Subscription<T> {
 }
 
 impl<T> Subscription<T> {
-    pub fn new(
+    pub(crate) fn new(
         receiver: UnboundedReceiver<T>,
         subscription_into: SubscriptionInto,
     ) -> Subscription<T> {
@@ -25,7 +25,7 @@ impl<T> Subscription<T> {
     }
 }
 
-/// Represents a subscription to a protocol and topic. Drop the `SubscriptionInto` object to unsubscribe.
+/// Represents a subscription to a protocol and topic, produced by `Client::subscribe_bytes_into`. Drop the `SubscriptionInto` object to unsubscribe.
 pub struct SubscriptionInto {
     topic: String,
     task_sender: UnboundedSender<Task>,
@@ -43,7 +43,7 @@ impl SubscriptionInto {
 impl Drop for SubscriptionInto {
     fn drop(&mut self) {
         let task = Task::Unsub(TaskUnsub {
-            msg: MsgUnsub {
+            msg: UnsubMsg {
                 topic: self.topic.clone(),
             },
         });
@@ -85,7 +85,7 @@ impl<T> RequestSubscription<T> {
 impl<T> Drop for RequestSubscription<T> {
     fn drop(&mut self) {
         let task = Task::Unsrv(TaskUnsrv {
-            msg: MsgUnsrv {
+            msg: UnsrvMsg {
                 topic: self.topic.clone(),
             },
         });

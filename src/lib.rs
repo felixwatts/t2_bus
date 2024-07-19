@@ -17,7 +17,7 @@
 //! 
 //! ```ignore
 //! // connect a new client to the bus listening at "my_bus"
-//! let client = bus::Client::new_unix("my_bus").unwrap();
+//! let (client, _joiner) = bus::Client::new_unix("my_bus").await.unwrap();
 //! ```
 //! 
 //! ## Intra-process mode
@@ -28,14 +28,14 @@
 //! // start an in process bus service
 //! let(mut listener, _stopper, _joiner) = bus::serve_bus_in_process().unwrap();
 //! // connect a new client to the bus
-//! let client = bus::Client::new_memory(&mut listener).unwrap();
+//! let (client, _joiner) = bus::Client::new_memory(&mut listener).unwrap();
 //! ```
 //! 
 //! ## Publish/Subscribe
 //! 
 //! Clients may subscribe to topics in order to receive all messages published on matching topics.
 //! 
-//! ```ignore
+//! ```
 //! use serde::{Deserialize, Serialize};
 //! use bus::serve_bus_in_process;
 //! use bus::Client;
@@ -143,6 +143,7 @@ pub(crate) mod protocol;
 pub(crate) mod err;
 #[cfg(debug_assertions)]
 pub(crate) mod debug;
+mod stopper;
 
 #[macro_use]
 extern crate lazy_static;
@@ -153,13 +154,40 @@ extern crate serde_derive;
 pub mod test;
 
 pub use err::*;
-pub use protocol::{RequestProtocol, PublishProtocol, MsgPub};
+pub use protocol::{RequestProtocol, PublishProtocol, PubMsg};
 pub use client::Client;
-pub use transport::memory_transport::listen_and_serve as serve_bus_in_process;
-pub use transport::unix_socket_transport::listen_and_serve as serve_bus_unix_socket;
-pub use transport::memory_transport::MemoryTransportListener;
+
+/// Start a bus server using the in-process memory transport. You can then connect to
+/// and use the bus from within the same rust program.
+/// ```rust
+/// # fn main() -> crate::err::BusResult<()> {
+///    let(_stopper, connector) = listen_and_serve_memory()?;
+///
+///    // Create and connect a client
+///    let (mut client, _client_joiner) = Client::new_memory(&mut connector)?;
+/// #
+/// #     Ok(())
+/// # }
+/// ```
+pub use server::listen_and_serve_memory;
+
+/// Start a bus server using the unix socket transport. You can then connect to
+/// and use the bus from within a separate process.
+/// ```rust
+/// # fn main() -> crate::err::BusResult<()> {
+///    let _stopper = serve_bus_unix_socket("my_bus")?;
+///
+///    // Then is a separate process, connect a client to the bus:
+///    let (mut client, _client_joiner) = Client::new_unix("my_bus")?;
+/// #
+/// #     Ok(())
+/// # }
+/// ```
+pub use server::listen_and_serve_unix;
+pub use server::listen_and_serve_tcp;
 pub use transport::cbor_codec::CborCodec;
 pub use client::subscription::{RequestSubscription, Subscription, SubscriptionInto};
+pub use stopper::Stopper;
 
 pub const DEFAULT_BUS_ADDR: &str = ".bus";
 

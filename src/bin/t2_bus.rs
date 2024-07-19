@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use t2_bus::BusResult;
+use t2_bus::{BusResult, Stopper};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
@@ -18,9 +18,7 @@ async fn main() {
 
 async fn run() -> BusResult<()> {
     let opt = BusOpt::from_args();
-    let stopper = t2_bus::serve_bus_unix_socket(&opt.addr)?;
-    let (result_1, result_2) = stopper.join().await?;
-    result_1?;
-    result_2?;
+    let stopper = t2_bus::listen_and_serve_unix(&opt.addr)?;
+    stopper.join().await?;
     Ok(())
 }

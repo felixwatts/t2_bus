@@ -5,11 +5,14 @@ use self::core::*;
 use self::subscription::*;
 use super::{
     topic::prefix_topic,
-    transport::{memory_transport::MemoryTransportListener, Transport},
+    transport::{Transport},
 };
 use crate::protocol::*;
 use crate::err::*;
+use crate::transport::memory_transport::MemoryConnector;
+use crate::transport::memory_transport::MemoryListener;
 use std::{path::PathBuf, time::Duration};
+use tokio::net::ToSocketAddrs;
 use tokio::{
     sync::mpsc::unbounded_channel, sync::mpsc::UnboundedSender, task::JoinHandle, time::timeout,
 };
@@ -37,16 +40,22 @@ impl Client {
     }
 
     /// Create a new bus client connected to the bus at the specified unix socket address
+    pub async fn new_tcp(addr: impl ToSocketAddrs) -> BusResult<(Client, JoinHandle<BusResult<()>>)> {
+        let transport = crate::transport::socket_transport::connect_tcp(addr).await?;
+        Client::new(transport)
+    }
+
+    /// Create a new bus client connected to the bus at the specified unix socket address
     pub async fn new_unix(addr: &PathBuf) -> BusResult<(Client, JoinHandle<BusResult<()>>)> {
-        let transport = crate::transport::unix_socket_transport::connect(addr).await?;
+        let transport = crate::transport::socket_transport::connect_unix(addr).await?;
         Client::new(transport)
     }
 
     /// Create a new bus client connected an in-process bus using the specified memory transport listener
     pub fn new_memory(
-        listener: &mut MemoryTransportListener,
+        connector: &MemoryConnector,
     ) -> BusResult<(Client, JoinHandle<BusResult<()>>)> {
-        let transport = listener.connect()?;
+        let transport = connector.connect()?;
         Client::new(transport)
     }
 
@@ -96,7 +105,7 @@ impl Client {
             RequestSubscription::new(&topic, typed_request_receiver, self.task_sender.clone());
 
         let task = Task::Srv(TaskSrv {
-            msg: MsgSrv { topic },
+            msg: SrvMsg { topic },
             callback_ack: callback_ack_sender,
             callback_req: callback_req_sender,
         });
@@ -138,7 +147,7 @@ impl Client {
         let (callback_rsp_sender, callback_rsp_receiver) = tokio::sync::oneshot::channel();
 
         let task = Task::Req(TaskReq {
-            msg: MsgReq {
+            msg: ReqMsg {
                 topic: topic.clone(), // TODO
                 payload: payload.into(),
             },
@@ -152,11 +161,11 @@ impl Client {
         let rsp = callback_rsp_receiver.await?;
 
         match rsp.status {
-            MsgRspStatus::Ok => {
+            RspMsgStatus::Ok => {
                 let data: Vec<u8> = rsp.payload.into();
                 Ok(serde_cbor::from_slice(&data)?)
             }
-            MsgRspStatus::Timeout => Err(BusError::RequestFailedTimeout)
+            RspMsgStatus::Timeout => Err(BusError::RequestFailedTimeout)
         }
     }
 
@@ -171,7 +180,7 @@ impl Client {
         let (callback_rsp_sender, callback_rsp_receiver) = tokio::sync::oneshot::channel();
 
         let task = Task::Req(TaskReq {
-            msg: MsgReq {
+            msg: ReqMsg {
                 topic: topic_with_prefix.to_string(),
                 payload: payload.into(),
             },
@@ -198,7 +207,7 @@ impl Client {
         TProtocol: RequestProtocol,
     {
         let payload = serde_cbor::ser::to_vec_packed(rsp)?;
-        self._respond(request_id, MsgRspStatus::Ok, payload).await
+        self._respond(request_id, RspMsgStatus::Ok, payload).await
     }
 
     /// Subscribe to a given protocol and topic. Values published on the protocol and topic will be routed to you
@@ -233,7 +242,7 @@ impl Client {
         let topic = prefix_topic(TProtocol::prefix(), topic);
 
         let (callback_ack_sender, mut callback_ack_receiver) = tokio::sync::oneshot::channel();
-        let (callback_pub_sender, mut callback_pub_receiver) = unbounded_channel::<MsgPub>();
+        let (callback_pub_sender, mut callback_pub_receiver) = unbounded_channel::<PubMsg>();
 
         tokio::spawn(async move {
             while let Some(msg_pub) = callback_pub_receiver.recv().await {
@@ -252,7 +261,7 @@ impl Client {
         });
 
         let task = Task::Sub(TaskSub {
-            msg: MsgSub {
+            msg: SubMsg {
                 topic: topic.clone(),
             },
             callback_ack: callback_ack_sender,
@@ -274,8 +283,8 @@ impl Client {
     pub async fn subscribe_bytes(
         &mut self,
         topic_with_prefix: &str,
-    ) -> BusResult<Subscription<MsgPub>> {
-        let (sender, receiver) = unbounded_channel::<MsgPub>();
+    ) -> BusResult<Subscription<PubMsg>> {
+        let (sender, receiver) = unbounded_channel::<PubMsg>();
         let sub_into = self.subscribe_bytes_into(topic_with_prefix, sender).await?;
         let sub = Subscription::new(receiver, sub_into);
         Ok(sub)
@@ -287,12 +296,12 @@ impl Client {
     pub async fn subscribe_bytes_into(
         &mut self,
         topic_with_prefix: &str,
-        sender: UnboundedSender<MsgPub>,
+        sender: UnboundedSender<PubMsg>,
     ) -> BusResult<SubscriptionInto> {
         let (callback_ack_sender, mut callback_ack_receiver) = tokio::sync::oneshot::channel();
 
         let task = Task::Sub(TaskSub {
-            msg: MsgSub {
+            msg: SubMsg {
                 topic: topic_with_prefix.into(),
             },
             callback_ack: callback_ack_sender,
@@ -332,7 +341,7 @@ impl Client {
         let (callback_ack_sender, mut callback_ack_receiver) = tokio::sync::oneshot::channel();
 
         let task = Task::Pub(TaskPub {
-            msg: MsgPub {
+            msg: PubMsg {
                 topic: topic_with_prefix.to_string(),
                 payload: payload.into(),
             },
@@ -348,13 +357,13 @@ impl Client {
     async fn _respond(
         &mut self,
         req_id: MsgId,
-        status: MsgRspStatus,
+        status: RspMsgStatus,
         payload: Vec<u8>,
     ) -> BusResult<()> {
         let (callback_ack_sender, mut callback_ack_receiver) = tokio::sync::oneshot::channel();
 
         let task = Task::Rsp(TaskRsp {
-            msg: MsgRsp {
+            msg: RspMsg {
                 req_id,
                 status,
                 payload: payload.into(),
@@ -370,7 +379,7 @@ impl Client {
 }
 
 async fn expect_ack(
-    receiver: &mut tokio::sync::oneshot::Receiver<MsgAck>,
+    receiver: &mut tokio::sync::oneshot::Receiver<AckMsg>,
 ) -> BusResult<Option<usize>> {
     match timeout(Duration::from_secs(ACK_TIMEOUT_S), receiver).await {
         Ok(ack) => match ack {

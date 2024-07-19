@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use t2_bus::{serve_bus_in_process, Client, RequestProtocol, BusResult};
+use t2_bus::{listen_and_serve_memory, BusResult, Client, RequestProtocol};
 
 // Define protocol message types for request and response
 #[derive(Clone, Deserialize, Serialize, Debug)]
@@ -20,11 +20,11 @@ impl RequestProtocol for HelloRequest{
 #[tokio::main]
 async fn main() -> BusResult<()> {
     // Start a bus server using the in-process memory transport
-    let(mut listener, _stopper, _server_joiner) = serve_bus_in_process()?;
+    let(stopper,  mut connector) = listen_and_serve_memory()?;
 
     // Create and connect two clients
-    let (mut requester, _requester_joiner) = Client::new_memory(&mut listener)?;
-    let (mut responder, _responder_joiner) = Client::new_memory(&mut listener)?;
+    let (mut requester, _requester_joiner) = Client::new_memory(&mut connector)?;
+    let (mut responder, _responder_joiner) = Client::new_memory(&mut connector)?;
 
     // Service provider begins to serve the `HelloRequest` protocol at topic ''
     let mut request_subscription = responder.serve::<HelloRequest>("").await?;

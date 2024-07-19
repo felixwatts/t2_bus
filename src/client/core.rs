@@ -10,42 +10,42 @@ use futures::StreamExt;
 use tokio::task::JoinHandle;
 
 pub(crate) struct TaskPub {
-    pub(crate) msg: MsgPub,
-    pub(crate) callback_ack: tokio::sync::oneshot::Sender<MsgAck>,
+    pub(crate) msg: PubMsg,
+    pub(crate) callback_ack: tokio::sync::oneshot::Sender<AckMsg>,
 }
 pub(crate) struct TaskSub {
-    pub(crate) msg: MsgSub,
-    pub(crate) callback_ack: tokio::sync::oneshot::Sender<MsgAck>,
-    pub(crate) callback_pub: tokio::sync::mpsc::UnboundedSender<MsgPub>,
+    pub(crate) msg: SubMsg,
+    pub(crate) callback_ack: tokio::sync::oneshot::Sender<AckMsg>,
+    pub(crate) callback_pub: tokio::sync::mpsc::UnboundedSender<PubMsg>,
 }
 
 pub(crate) struct TaskUnsub {
-    pub(crate) msg: MsgUnsub,
+    pub(crate) msg: UnsubMsg,
 }
 
 pub(crate) struct TaskUnsrv {
-    pub(crate) msg: MsgUnsrv,
+    pub(crate) msg: UnsrvMsg,
 }
 
 pub(crate) struct TaskReq {
-    pub(crate) msg: MsgReq,
-    pub(crate) callback_ack: tokio::sync::oneshot::Sender<MsgAck>,
-    pub(crate) callback_rsp: tokio::sync::oneshot::Sender<MsgRsp>,
+    pub(crate) msg: ReqMsg,
+    pub(crate) callback_ack: tokio::sync::oneshot::Sender<AckMsg>,
+    pub(crate) callback_rsp: tokio::sync::oneshot::Sender<RspMsg>,
 }
 
 pub(crate) struct TaskRsp {
-    pub(crate) msg: MsgRsp,
-    pub(crate) callback_ack: tokio::sync::oneshot::Sender<MsgAck>,
+    pub(crate) msg: RspMsg,
+    pub(crate) callback_ack: tokio::sync::oneshot::Sender<AckMsg>,
 }
 
 pub(crate) struct TaskSrv {
-    pub(crate) msg: MsgSrv,
-    pub(crate) callback_ack: tokio::sync::oneshot::Sender<MsgAck>,
-    pub(crate) callback_req: tokio::sync::mpsc::UnboundedSender<(MsgId, MsgReq)>,
+    pub(crate) msg: SrvMsg,
+    pub(crate) callback_ack: tokio::sync::oneshot::Sender<AckMsg>,
+    pub(crate) callback_req: tokio::sync::mpsc::UnboundedSender<(MsgId, ReqMsg)>,
 }
 
 pub(crate) struct TaskStopBus {
-    pub(crate) callback_ack: tokio::sync::oneshot::Sender<MsgAck>,
+    pub(crate) callback_ack: tokio::sync::oneshot::Sender<AckMsg>,
 }
 
 pub(crate) enum Task {
@@ -66,10 +66,10 @@ where
 {
     next_msg_id: MsgId,
     transport: TTransport,
-    callbacks_ack: HashMap<MsgId, tokio::sync::oneshot::Sender<MsgAck>>,
-    callbacks_rsp: HashMap<MsgId, tokio::sync::oneshot::Sender<MsgRsp>>,
-    callbacks_pub: HashMap<MsgId, tokio::sync::mpsc::UnboundedSender<MsgPub>>,
-    callbacks_req: HashMap<MsgId, tokio::sync::mpsc::UnboundedSender<(MsgId, MsgReq)>>,
+    callbacks_ack: HashMap<MsgId, tokio::sync::oneshot::Sender<AckMsg>>,
+    callbacks_rsp: HashMap<MsgId, tokio::sync::oneshot::Sender<RspMsg>>,
+    callbacks_pub: HashMap<MsgId, tokio::sync::mpsc::UnboundedSender<PubMsg>>,
+    callbacks_req: HashMap<MsgId, tokio::sync::mpsc::UnboundedSender<(MsgId, ReqMsg)>>,
     subscriptions: Directory,
     task_receiver: tokio::sync::mpsc::UnboundedReceiver<Task>,
 }
@@ -250,7 +250,7 @@ where
                         // unsubscribe from server for any topics that now have no subscribers
                         for topic in topics {
                             let unsubscribe_task = Task::Unsub(TaskUnsub {
-                                msg: MsgUnsub { topic },
+                                msg: UnsubMsg { topic },
                             });
                             self.send(unsubscribe_task).await?;
 

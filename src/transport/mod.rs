@@ -4,7 +4,7 @@ use super::protocol::Msg;
 
 pub mod cbor_codec;
 pub mod memory_transport;
-pub mod unix_socket_transport;
+pub mod socket_transport;
 
 pub trait Transport<TSend, TRecv>:
     'static

@@ -2,9 +2,7 @@ use futures::{Sink, Stream};
 use tokio::{sync::mpsc::{UnboundedReceiver, UnboundedSender}, task::JoinHandle};
 
 use crate::{
-    protocol::{Msg, ProtocolClient, ProtocolServer},
-    server::Task,
-    err::*,
+    client, err::*, protocol::{Msg, ProtocolClient, ProtocolServer}, server::{core::Core, listen::Listener, Task}
 };
 
 use super::Transport;
@@ -14,19 +12,27 @@ pub struct MemoryTransport<TSend, TRecv> {
     receiver: UnboundedReceiver<BusResult<Msg<TRecv>>>,
 }
 
-pub struct MemoryTransportListener {
-    register_channel: UnboundedSender<Task>,
+pub(crate) struct MemoryListener {
+    
+    accept_receiver: UnboundedReceiver<MemoryTransport<ProtocolServer, ProtocolClient>>,
 }
 
-pub fn listen_and_serve() -> BusResult<(MemoryTransportListener, tokio::sync::oneshot::Sender<()>, JoinHandle<BusResult<()>>)> {
-    let mut core = crate::server::Core::new();
-    let memory_listener = MemoryTransportListener { register_channel: core.get_task_sender() };
-    let (core_stop_sender, core_join_handle) = core.spawn()?;
-    Ok((memory_listener, core_stop_sender, core_join_handle))
+impl Listener for MemoryListener{
+    async fn accept(&mut self) -> BusResult<impl Transport<ProtocolServer, ProtocolClient>> {
+        let client = self.accept_receiver.recv().await;
+        match client{
+            Some(client) => Ok(client),
+            None => Err(BusError::ChannelClosed)
+        }
+    }
 }
 
-impl MemoryTransportListener {
-    pub fn connect(&mut self) -> BusResult<MemoryTransport<ProtocolClient, ProtocolServer>> {
+pub struct MemoryConnector{
+    accept_sender: UnboundedSender<MemoryTransport<ProtocolServer, ProtocolClient>>,
+}
+
+impl MemoryConnector{
+    pub fn connect(&self) -> BusResult<MemoryTransport<ProtocolClient, ProtocolServer>> {
         let (client_sender, server_receiver) = tokio::sync::mpsc::unbounded_channel();
         let (server_sender, client_receiver) = tokio::sync::mpsc::unbounded_channel();
 
@@ -40,11 +46,21 @@ impl MemoryTransportListener {
             receiver: server_receiver,
         };
 
-        self.register_channel
-            .send(Task::Register(Box::new(server_side)))?;
+        self.accept_sender.send(server_side)?;
 
         Ok(client_side)
     }
+}
+
+impl MemoryListener {
+    pub(crate) fn new() -> (Self, MemoryConnector){
+        let (accept_sender, accept_receiver) = tokio::sync::mpsc::unbounded_channel();
+        let listener = Self { accept_receiver };
+        let connector = MemoryConnector{ accept_sender };
+        (listener, connector)
+    }
+    
+
 }
 
 impl<TSend, TRecv> Stream for MemoryTransport<TSend, TRecv> {
