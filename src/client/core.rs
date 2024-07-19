@@ -130,7 +130,7 @@ where
         #[cfg(debug_assertions)]
         {
             let log_msg = crate::debug::client_msg_to_string(&msg);
-            println!("[B] <-- [?] {}", &log_msg);
+            println!("C [B] <-- [?] {}", &log_msg);
         }
 
         self.transport.send(msg).await?;
@@ -214,7 +214,7 @@ where
         #[cfg(debug_assertions)]
         {
             let log_msg = crate::debug::server_msg_to_string(&msg);
-            println!("[B] --> [?] {}", &log_msg);
+            println!("C [B] --> [?] {}", &log_msg);
         }
 
         match msg.content {

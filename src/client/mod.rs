@@ -5,7 +5,7 @@ use self::core::*;
 use self::subscription::*;
 use super::{
     topic::prefix_topic,
-    transport::{Transport},
+    transport::Transport,
 };
 use crate::protocol::*;
 use crate::err::*;

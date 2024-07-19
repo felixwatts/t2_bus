@@ -1,8 +1,7 @@
 use futures::{Sink, Stream};
-use tokio::{sync::mpsc::{UnboundedReceiver, UnboundedSender}};
-
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use crate::{
-    err::*, protocol::{Msg, ProtocolClient, ProtocolServer}, server::{listen::Listener}
+    err::*, protocol::{Msg, ProtocolClient, ProtocolServer}, server::listen::Listener
 };
 
 use super::Transport;

@@ -1,11 +1,7 @@
 use std::time::Instant;
-
 use futures::{stream::FuturesUnordered, StreamExt};
 use tokio::{join, task::JoinHandle};
-
-use super::{
-    protocol::{PublishProtocol, RequestProtocol}
-};
+use super::protocol::{PublishProtocol, RequestProtocol};
 use crate::{client::Client, err::BusResult, stopper::Stopper};
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
@@ -36,11 +32,20 @@ pub fn unique_addr() -> std::path::PathBuf {
 
 async fn setup() -> (Client, Client, impl Stopper) {
     let addr = unique_addr();
-    let listener = crate::transport::unix::UnixListener::new(&addr).unwrap();
-    let stopper = crate::server::listen::listen_and_serve(listener).unwrap();
+    let stopper = crate::listen_and_serve_unix(&addr).unwrap();
 
     let (client_1, _) = Client::new_unix(&addr).await.unwrap();
     let (client_2, _) = Client::new_unix(&addr).await.unwrap();
+
+    (client_1, client_2, stopper)
+}
+
+async fn setup_tcp() -> (Client, Client, impl Stopper) {
+    let addr = "localhost:8999";
+    let stopper = crate::listen_and_serve_tcp(addr).await.unwrap();
+
+    let (client_1, _) = Client::new_tcp(addr).await.unwrap();
+    let (client_2, _) = Client::new_tcp(addr).await.unwrap();
 
     (client_1, client_2, stopper)
 }
@@ -56,6 +61,24 @@ async fn setup_local() -> (
     let (client_2, _) = Client::new_memory(&connector).unwrap();
 
     (client_1, client_2, stopper)
+}
+
+#[tokio::test]
+async fn test_tcp() {
+    let (mut client_1, mut client_2, stopper) = setup_tcp().await;
+
+    let mut rx = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
+
+    client_2
+        .publish("a/b/c", &TestPub("d".into()))
+        .await
+        .unwrap();
+    let (topic, payload) = rx.recv().await.unwrap();
+
+    assert_eq!("test/a/b/c", &topic);
+    assert_eq!(&"d", &payload.0);
+
+    stopper.stop().await.unwrap();
 }
 
 #[tokio::test]

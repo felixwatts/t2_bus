@@ -1,14 +1,9 @@
 use crate::{
-    err::BusResult, protocol::{Msg, ProtocolClient, ProtocolServer}, server::{listen::{Listener}}
+    err::BusResult, protocol::{Msg, ProtocolClient, ProtocolServer}, server::listen::Listener
 };
-use std::{path::PathBuf};
-
-
-use tokio::{
-    net::{UnixStream},
-};
+use std::path::PathBuf;
+use tokio::net::UnixStream;
 use tokio_util::codec::Framed;
-
 use super::{cbor_codec::CborCodec, Transport};
 
 pub(crate) async fn connect_unix(

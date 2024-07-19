@@ -8,9 +8,7 @@ use crate::topic::*;
 use crate::err::*;
 use std::collections::HashMap;
 use tokio::time::Duration;
-use tokio::{
-    sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
-};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 const REQUEST_TIMEOUT_S: u64 = 30;
 
@@ -139,7 +137,7 @@ impl Core {
         #[cfg(debug_assertions)]
         {
             let log_msg = crate::debug::client_msg_to_string(&msg);
-            println!("[{}] --> [B] {}", client_id, &log_msg);
+            println!("B [{}] --> [B] {}", client_id, &log_msg);
         }
 
         let stop = matches!(msg.content, ProtocolClient::Stop);
@@ -281,7 +279,7 @@ impl Core {
         #[cfg(debug_assertions)]
         {
             let log_msg = crate::debug::server_msg_to_string(&msg);
-            println!("[{}] <-- [B] {}", client_id, &log_msg);
+            println!("B [{}] <-- [B] {}", client_id, &log_msg);
         }
 
         let client_opt = self.protocol_server_senders.get_mut(&client_id);
