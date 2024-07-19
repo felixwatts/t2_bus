@@ -32,7 +32,15 @@ futures="0.3.13"
 ansi_term = "0.12.1"
 flate2 = "1.0.20"
 thiserror = "1.0.24"
+tokio-rustls = { version = "0.26.0", optional = false }
+rustls-pemfile = "2.1.2"
+# web_pki = "0.22.40"
 
 [dev-dependencies]
-uuid = { version = "0.8.2", features = ["v4"] }
+uuid = { version = "1.10.0", features = ["v4"] }
 tempfile = "3.2.0"
+
+# [features]
+# tls = [ 
+#     "tokio-rustls"
+# ]

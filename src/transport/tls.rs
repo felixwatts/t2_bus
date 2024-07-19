@@ -1,5 +1,8 @@
+use std::convert::TryFrom;
+use std::fmt::format;
 use std::fs::File;
 use std::io::BufReader;
+use std::os::unix::net::SocketAddr;
 use std::path;
 use std::path::Path;
 use std::sync::Arc;
@@ -9,11 +12,14 @@ use rustls_pemfile::private_key;
 use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio_rustls::rustls::pki_types::CertificateDer;
 use tokio_rustls::rustls::pki_types::PrivateKeyDer;
+use tokio_rustls::rustls::pki_types::ServerName;
 use tokio_rustls::rustls::server::danger::ClientCertVerifier;
 use tokio_rustls::rustls::ClientConfig;
 use tokio_rustls::rustls::RootCertStore;
 use tokio_rustls::rustls::ServerConfig;
 use tokio_rustls::TlsAcceptor;
+use tokio_rustls::TlsConnector;
+use tokio_rustls::client::TlsStream;
 use tokio_util::codec::Framed;
 
 use crate::{protocol::{Msg, ProtocolClient, ProtocolServer}, server::listen::Listener, err::BusResult, transport::CborCodec};
@@ -21,30 +27,33 @@ use crate::{protocol::{Msg, ProtocolClient, ProtocolServer}, server::listen::Lis
 use super::BusError;
 use super::Transport;
 
-pub(crate) struct TcpListener(tokio::net::TcpListener);
+pub(crate) async fn connect_tls (
+    host: &str,
+    port: u16,
+    ca_file: &Path
+) -> BusResult<Framed<TlsStream<TcpStream>, CborCodec<Msg<ProtocolClient>, Msg<ProtocolServer>>>> {
 
-impl TcpListener{
-    pub(crate) async fn new(addr: impl ToSocketAddrs) -> BusResult<Self>{
-        let listener = tokio::net::TcpListener::bind(addr).await?;
-        Ok(
-            Self(listener)
-        )
+    let mut root_cert_store = RootCertStore::empty();
+    let mut pem = BufReader::new(File::open(ca_file)?);
+    for cert in rustls_pemfile::certs(&mut pem) {
+        root_cert_store.add(cert?).unwrap();
     }
-}
 
-impl Listener for TcpListener{
-    async fn accept(&mut self) -> BusResult<impl Transport<ProtocolServer, ProtocolClient>> {
-        let (socket, _) = self.0.accept().await?;
-        let transport = tokio_util::codec::Framed::new(socket, CborCodec::new());
-        Ok(transport)
-    }
-}
+    let config = ClientConfig::builder()
+        .with_root_certificates(root_cert_store)
+        .with_no_client_auth(); // i guess this was previously the default?
+    
+    let connector = TlsConnector::from(Arc::new(config));
 
-pub(crate) async fn connect_tcp (
-    addr: impl ToSocketAddrs,
-) -> BusResult<Framed<TcpStream, CborCodec<Msg<ProtocolClient>, Msg<ProtocolServer>>>> {
-    let socket = tokio::net::TcpStream::connect(addr).await?;
-    let transport = tokio_util::codec::Framed::new(socket, CborCodec::new());
+    let socket = TcpStream::connect(&format!("{host}:{port}")).await?;
+
+    let domain = ServerName::try_from(host)
+        .map_err(|_| BusError::InternalError("invalid hostname".into()))?
+        .to_owned();
+
+    let tls_socket = connector.connect(domain, socket).await?;
+
+    let transport = tokio_util::codec::Framed::new(tls_socket, CborCodec::new());
     Ok(transport)
 }
 
@@ -99,5 +108,3 @@ impl Listener for TlsListener{
         Ok(transport)
     }
 }
-
-
