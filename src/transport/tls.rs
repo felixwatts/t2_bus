@@ -38,7 +38,9 @@ pub async fn serve(addr: impl ToSocketAddrs, certs_pem_file: &Path, key_file: &P
 pub async fn connect (
     host: &str,
     port: u16,
-    ca_file: &Path
+    ca_file: &Path,
+    certs_pem_file: &Path, 
+    key_file: &Path
 ) -> BusResult<Framed<TlsStream<TcpStream>, CborCodec<Msg<ProtocolClient>, Msg<ProtocolServer>>>> {
 
     let mut root_cert_store = RootCertStore::empty();
@@ -47,9 +49,13 @@ pub async fn connect (
         root_cert_store.add(cert?).unwrap();
     }
 
+    let cert_chain = load_certs(certs_pem_file)?;
+    let key = load_key(key_file)?;
+
     let config = ClientConfig::builder()
         .with_root_certificates(root_cert_store)
-        .with_no_client_auth(); // i guess this was previously the default?
+        .with_client_auth_cert(cert_chain, key)
+        .map_err(|e| BusError::InternalError(e.to_string()))?;
     
     let connector = TlsConnector::from(Arc::new(config));
 
@@ -73,11 +79,10 @@ struct TlsListener{
 impl TlsListener{
     pub(crate) async fn new(addr: impl ToSocketAddrs, certs_pem_file: &Path, key_file: &Path) -> BusResult<Self>{
         let listener = tokio::net::TcpListener::bind(addr).await?;
-        let certs = TlsListener::load_certs(certs_pem_file)?;
-        let key = TlsListener::load_key(key_file)?;
+        let certs = load_certs(certs_pem_file)?;
+        let key = load_key(key_file)?;
 
         let config = ServerConfig::builder()
-            .with_no_client_auth()
             .with_single_cert(certs, key)
             .map_err(|err| BusError::InternalError(err.to_string()))?;
 
@@ -92,20 +97,6 @@ impl TlsListener{
     }
 }
 
-impl TlsListener{
-    fn load_certs(path: &Path) -> BusResult<Vec<CertificateDer<'static>>> {
-        certs(&mut BufReader::new(File::open(path)?)).map(|r| r.map_err(|e| BusError::InternalError(e.to_string()))).collect()
-    }
-    
-    fn load_key(path: &Path) -> BusResult<PrivateKeyDer<'static>> {
-        private_key(&mut BufReader::new(File::open(path)?))
-            .unwrap()
-            .ok_or(BusError::InternalError(
-                "no private key found".to_string(),
-            ))
-    }
-}
-
 impl Listener for TlsListener{
     async fn accept(&mut self) -> BusResult<impl Transport<ProtocolServer, ProtocolClient>> {
         let (socket, _) = self.listener.accept().await?;
@@ -115,4 +106,16 @@ impl Listener for TlsListener{
         
         Ok(transport)
     }
+}
+
+fn load_certs(path: &Path) -> BusResult<Vec<CertificateDer<'static>>> {
+    certs(&mut BufReader::new(File::open(path)?)).map(|r| r.map_err(|e| BusError::InternalError(e.to_string()))).collect()
+}
+
+fn load_key(path: &Path) -> BusResult<PrivateKeyDer<'static>> {
+    private_key(&mut BufReader::new(File::open(path)?))
+        .unwrap()
+        .ok_or(BusError::InternalError(
+            "no private key found".to_string(),
+        ))
 }
