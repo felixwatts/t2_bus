@@ -41,6 +41,18 @@ pub enum BusError{
     InternalError(String),
 }
 
+impl<T> From<ciborium::ser::Error<T>> for BusError {
+    fn from(_error: ciborium::ser::Error<T>) -> Self {
+        BusError::IOError("CBOR serialization failed.".into())
+    }
+}
+
+impl<T> From<ciborium::de::Error<T>> for BusError {
+    fn from(_error: ciborium::de::Error<T>) -> Self {
+        BusError::IOError("CBOR deserialization failed.".into())
+    }
+}
+
 impl From<std::io::Error> for BusError {
     fn from(error: std::io::Error) -> Self {
         BusError::IOError(error.to_string())
@@ -61,12 +73,6 @@ impl From<tokio::task::JoinError> for BusError {
 
 impl From<serde_json::error::Error> for BusError {
     fn from(error: serde_json::error::Error) -> Self {
-        BusError::UnserializableMessage(error.to_string())
-    }
-}
-
-impl From<serde_cbor::error::Error> for BusError {
-    fn from(error: serde_cbor::error::Error) -> Self {
         BusError::UnserializableMessage(error.to_string())
     }
 }

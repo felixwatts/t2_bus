@@ -12,6 +12,7 @@ use crate::err::*;
 use crate::transport::memory::MemoryConnector;
 use crate::transport::tcp::connect_tcp;
 
+use std::io::Cursor;
 use std::{path::PathBuf, time::Duration};
 use tokio::net::ToSocketAddrs;
 use tokio::{
@@ -114,7 +115,7 @@ impl Client {
         tokio::spawn(async move {
             while let Some((req_id, msg_req)) = callback_req_receiver.recv().await {
                 let data: Vec<u8> = msg_req.payload.into();
-                let req: TProtocol = serde_cbor::from_slice(&data).unwrap();
+                let req: TProtocol = crate::transport::cbor_codec::deser(&data[..]).unwrap();
 
                 let send_result = typed_request_sender.send((msg_req.topic, req_id, req));
 
@@ -139,7 +140,7 @@ impl Client {
     {
         let topic = prefix_topic(TProtocol::prefix(), topic);
 
-        let payload = serde_cbor::ser::to_vec(req)?;
+        let payload = crate::transport::cbor_codec::ser(req)?;
 
         let (callback_ack_sender, mut callback_ack_receiver) = tokio::sync::oneshot::channel();
         let (callback_rsp_sender, callback_rsp_receiver) = tokio::sync::oneshot::channel();
@@ -161,7 +162,8 @@ impl Client {
         match rsp.status {
             RspMsgStatus::Ok => {
                 let data: Vec<u8> = rsp.payload.into();
-                Ok(serde_cbor::from_slice(&data)?)
+                let rsp = crate::transport::cbor_codec::deser(&data[..])?;
+                Ok(rsp)
             }
             RspMsgStatus::Timeout => Err(BusError::RequestFailedTimeout)
         }
@@ -204,7 +206,7 @@ impl Client {
     where
         TProtocol: RequestProtocol,
     {
-        let payload = serde_cbor::ser::to_vec_packed(rsp)?;
+        let payload = crate::transport::cbor_codec::ser(rsp)?;
         self._respond(request_id, RspMsgStatus::Ok, payload).await
     }
 
@@ -245,7 +247,7 @@ impl Client {
         tokio::spawn(async move {
             while let Some(msg_pub) = callback_pub_receiver.recv().await {
                 let data: Vec<u8> = msg_pub.payload.into();
-                let msg: TProtocol = serde_cbor::from_slice(&data)
+                let msg: TProtocol = crate::transport::cbor_codec::deser(&data)
                     .map_err(|e| {
                         BusError::MalformedMessage(TProtocol::prefix().to_string(), e.to_string())
                     })
@@ -322,7 +324,7 @@ impl Client {
     {
         let topic = prefix_topic(TProtocol::prefix(), topic);
 
-        let payload = serde_cbor::ser::to_vec_packed(msg)?;
+        let payload = crate::transport::cbor_codec::ser(msg)?;
 
         let num_recipients = self.publish_bytes(&topic, payload).await?;
         Ok(num_recipients)
