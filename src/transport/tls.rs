@@ -13,7 +13,7 @@ use tokio::net::{TcpStream, ToSocketAddrs};
 use tokio_rustls::rustls::pki_types::CertificateDer;
 use tokio_rustls::rustls::pki_types::PrivateKeyDer;
 use tokio_rustls::rustls::pki_types::ServerName;
-
+use tokio_rustls::rustls::server::WebPkiClientVerifier;
 use tokio_rustls::rustls::ClientConfig;
 use tokio_rustls::rustls::RootCertStore;
 use tokio_rustls::rustls::ServerConfig;
@@ -30,8 +30,13 @@ use crate::{protocol::{Msg, ProtocolClient, ProtocolServer}, server::listen::Lis
 use super::BusError;
 use super::Transport;
 
-pub async fn serve(addr: impl ToSocketAddrs, certs_pem_file: &Path, key_file: &Path) -> BusResult<MultiStopper> {
-    let listener = TlsListener::new(addr, certs_pem_file, key_file).await?;
+pub async fn serve(
+    addr: impl ToSocketAddrs,
+    certs_pem_file: &Path, 
+    certs_key_file: &Path,
+    root_cert_pem_file: &Path
+) -> BusResult<MultiStopper> {
+    let listener = TlsListener::new(addr, certs_pem_file, certs_key_file, root_cert_pem_file).await?;
     listen_and_serve(listener)
 }
 
@@ -55,14 +60,14 @@ pub async fn connect (
     let config = ClientConfig::builder()
         .with_root_certificates(root_cert_store)
         .with_client_auth_cert(cert_chain, key)
-        .map_err(|e| BusError::InternalError(e.to_string()))?;
+        .map_err(|e| BusError::TlsConfigError(e.to_string()))?;
     
     let connector = TlsConnector::from(Arc::new(config));
 
     let socket = TcpStream::connect(&format!("{host}:{port}")).await?;
 
     let domain = ServerName::try_from(host)
-        .map_err(|_| BusError::InternalError("invalid hostname".into()))?
+        .map_err(|_| BusError::TlsConfigError("invalid hostname".into()))?
         .to_owned();
 
     let tls_socket = connector.connect(domain, socket).await?;
@@ -77,14 +82,20 @@ struct TlsListener{
 }
 
 impl TlsListener{
-    pub(crate) async fn new(addr: impl ToSocketAddrs, certs_pem_file: &Path, key_file: &Path) -> BusResult<Self>{
+    pub(crate) async fn new(addr: impl ToSocketAddrs, certs_pem_file: &Path, key_file: &Path, root_cert_pem_file: &Path) -> BusResult<Self>{
         let listener = tokio::net::TcpListener::bind(addr).await?;
         let certs = load_certs(certs_pem_file)?;
         let key = load_key(key_file)?;
+        let root_cert_store = load_root_cert_store(root_cert_pem_file)?;
+
+        let client_verifier = WebPkiClientVerifier::builder(root_cert_store.into())
+            .build()
+            .map_err(|err| BusError::TlsConfigError(err.to_string()))?;
 
         let config = ServerConfig::builder()
+            .with_client_cert_verifier(client_verifier)
             .with_single_cert(certs, key)
-            .map_err(|err| BusError::InternalError(err.to_string()))?;
+            .map_err(|err| BusError::TlsConfigError(err.to_string()))?;
 
         let tls_acceptor = TlsAcceptor::from(Arc::new(config));
 
@@ -109,13 +120,24 @@ impl Listener for TlsListener{
 }
 
 fn load_certs(path: &Path) -> BusResult<Vec<CertificateDer<'static>>> {
-    certs(&mut BufReader::new(File::open(path)?)).map(|r| r.map_err(|e| BusError::InternalError(e.to_string()))).collect()
+    certs(&mut BufReader::new(File::open(path)?)).map(|r| r.map_err(|e| BusError::TlsConfigError(e.to_string()))).collect()
+}
+
+fn load_root_cert_store(path: &Path) -> BusResult<RootCertStore> {
+    let root_certs: BusResult<Vec<CertificateDer<'static>>> = certs(&mut BufReader::new(File::open(path)?)).map(|r| r.map_err(|e| BusError::TlsConfigError(e.to_string()))).collect();
+    let root_certs = root_certs?;
+    let mut cert_store = RootCertStore::empty();
+    for cert in root_certs.into_iter() {
+        cert_store.add(cert).map_err(|e| BusError::TlsConfigError(e.to_string()))?;
+    }
+
+    Ok(cert_store)
 }
 
 fn load_key(path: &Path) -> BusResult<PrivateKeyDer<'static>> {
     private_key(&mut BufReader::new(File::open(path)?))
         .unwrap()
-        .ok_or(BusError::InternalError(
+        .ok_or(BusError::TlsConfigError(
             "no private key found".to_string(),
         ))
 }

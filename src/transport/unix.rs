@@ -37,7 +37,7 @@ pub(crate) struct UnixListener(tokio::net::UnixListener);
 
 impl UnixListener{
     pub(crate) fn new(addr: &PathBuf) -> BusResult<Self>{
-        let _ = std::fs::remove_file(addr);
+        let _ = std::fs::remove_file(&addr);
         let listener = tokio::net::UnixListener::bind(addr)?;
         Ok(
             Self(listener)

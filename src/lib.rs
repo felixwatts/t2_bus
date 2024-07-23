@@ -209,7 +209,5 @@ extern crate serde_derive;
 #[cfg(test)]
 pub mod test;
 
-pub const DEFAULT_BUS_ADDR: &str = ".bus";
-
 
 

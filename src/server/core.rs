@@ -57,7 +57,15 @@ impl Core {
     pub fn spawn(mut self) -> BusResult<BasicStopper> {
         let (stop_sender, stop_receiver) = tokio::sync::oneshot::channel();
         let join_handle = tokio::spawn(async move {
-            self.run(stop_receiver).await
+            #[cfg(debug_assertions)]
+            println!("B Bus server started");
+
+            let result = self.run(stop_receiver).await;
+
+            #[cfg(debug_assertions)]
+            println!("B Bus server stopped");
+
+            result
         });
         Ok(BasicStopper::new(stop_sender, join_handle))
     }

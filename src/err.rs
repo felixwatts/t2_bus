@@ -39,6 +39,9 @@ pub enum BusError{
     IOError(String),
     #[error("Internal error: {0}")]    
     InternalError(String),
+
+    #[error("TLS configuration error: {0}")]
+    TlsConfigError(String)
 }
 
 impl From<std::io::Error> for BusError {

@@ -93,7 +93,17 @@ where
             callbacks_req: HashMap::new(),
         };
 
-        let handle = tokio::spawn(async move { core.main_loop().await });
+        let handle = tokio::spawn(async move { 
+            #[cfg(debug_assertions)]
+            println!("B Bus client started");
+
+            let result = core.main_loop().await ;
+
+            #[cfg(debug_assertions)]
+            println!("B Bus client stopped");
+
+            result
+        });
 
         Ok(handle)
     }
