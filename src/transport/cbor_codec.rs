@@ -64,7 +64,7 @@ where
                             self.msg_len = None;
                             Ok(Some(msg))
                         }
-                        Err(e) => Err(e.into()),
+                        Err(e) => Err(e),
                     }
                 }
             }
