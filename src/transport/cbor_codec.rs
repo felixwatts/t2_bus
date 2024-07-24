@@ -64,7 +64,7 @@ where
                             self.msg_len = None;
                             Ok(Some(msg))
                         }
-                        Err(e) => Err(e.into()),
+                        Err(e) => Err(e),
                     }
                 }
             }
@@ -86,13 +86,15 @@ impl<TEncode: Serialize, TDecode> tokio_util::codec::Encoder<TEncode>
     }
 }
 
-pub(crate) fn ser<T: Serialize>(value: &T) -> BusResult<Vec<u8>> {
+/// Serialize using the bus' internal serialization format
+pub fn ser<T: Serialize>(value: &T) -> BusResult<Vec<u8>> {
     let mut data = vec![];
     ciborium::into_writer(value, &mut data)?;
     Ok(data)
 } 
 
-pub(crate) fn deser<T: DeserializeOwned>(data: &[u8]) -> BusResult<T> {
+/// Deserialize using the bus' internal serialization format
+pub fn deser<T: DeserializeOwned>(data: &[u8]) -> BusResult<T> {
     let reader = Cursor::new(data);
     let t = ciborium::from_reader(reader)?;
     Ok(t)

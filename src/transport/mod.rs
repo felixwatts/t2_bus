@@ -5,6 +5,7 @@ pub mod cbor_codec;
 pub mod memory;
 pub mod unix;
 pub mod tcp;
+pub mod tls;
 
 pub trait Transport<TSend, TRecv>:
     'static

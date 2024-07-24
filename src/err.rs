@@ -39,6 +39,9 @@ pub enum BusError{
     IOError(String),
     #[error("Internal error: {0}")]    
     InternalError(String),
+
+    #[error("TLS configuration error: {0}")]
+    TlsConfigError(String)
 }
 
 impl<T> From<ciborium::ser::Error<T>> for BusError {

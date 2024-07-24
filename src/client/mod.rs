@@ -9,12 +9,10 @@ use super::{
 };
 use crate::protocol::*;
 use crate::err::*;
-use crate::transport::memory::MemoryConnector;
-use crate::transport::tcp::connect_tcp;
 
-use std::io::Cursor;
-use std::{path::PathBuf, time::Duration};
-use tokio::net::ToSocketAddrs;
+
+use std::{time::Duration};
+
 use tokio::{
     sync::mpsc::unbounded_channel, sync::mpsc::UnboundedSender, task::JoinHandle, time::timeout,
 };
@@ -29,7 +27,7 @@ pub struct Client {
 }
 
 impl Client {
-    fn new(transport: impl Transport<ProtocolClient, ProtocolServer>) -> BusResult<Client>
+    pub(crate) fn new(transport: impl Transport<ProtocolClient, ProtocolServer>) -> BusResult<Client>
     {
         let (task_sender, task_receiver) = tokio::sync::mpsc::unbounded_channel();
 
@@ -38,26 +36,6 @@ impl Client {
         let client = Client { task_sender, core_join_handle };
 
         Ok(client)
-    }
-
-    /// Create a new bus client connected to the bus at the specified unix socket address
-    pub async fn new_tcp(addr: impl ToSocketAddrs) -> BusResult<Client> {
-        let transport = connect_tcp(addr).await?;
-        Client::new(transport)
-    }
-
-    /// Create a new bus client connected to the bus at the specified unix socket address
-    pub async fn new_unix(addr: &PathBuf) -> BusResult<Client> {
-        let transport = crate::transport::unix::connect_unix(addr).await?;
-        Client::new(transport)
-    }
-
-    /// Create a new bus client connected an in-process bus using the specified memory transport listener
-    pub fn new_memory(
-        connector: &MemoryConnector,
-    ) -> BusResult<Client> {
-        let transport = connector.connect()?;
-        Client::new(transport)
     }
 
     /// Send a stop message to the bus itself. The bus will terminate.

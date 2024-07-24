@@ -16,11 +16,11 @@ impl PublishProtocol for HelloProtocol{
 #[tokio::main]
 async fn main() -> BusResult<()> {
     // Start a bus server using the in-process memory transport
-    let(stopper, connector) = listen_and_serve_memory()?;
+    let(stopper, connector) = t2_bus::transport::memory::serve()?;
 
     // Create and connect two clients
-    let publisher = Client::new_memory(&connector)?;
-    let subscriber = Client::new_memory(&connector)?;
+    let publisher = t2_bus::transport::memory::connect(&connector)?;
+    let subscriber = t2_bus::transport::memory::connect(&connector)?;
 
     // Subscriber subscribes to `HelloProtocol` protocol and 'alice' topic
     let mut subscription = subscriber.subscribe::<HelloProtocol>("alice").await?;
