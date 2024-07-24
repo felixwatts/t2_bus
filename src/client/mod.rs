@@ -10,9 +10,9 @@ use super::{
 use crate::protocol::*;
 use crate::err::*;
 
-use std::io::Cursor;
-use std::{path::PathBuf, time::Duration};
-use tokio::net::ToSocketAddrs;
+
+use std::{time::Duration};
+
 use tokio::{
     sync::mpsc::unbounded_channel, sync::mpsc::UnboundedSender, task::JoinHandle, time::timeout,
 };
