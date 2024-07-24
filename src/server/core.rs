@@ -63,7 +63,7 @@ impl Core {
             let result = self.run(stop_receiver).await;
 
             #[cfg(debug_assertions)]
-            println!("B Bus server stopped");
+            println!("B Bus server stopped: {result:?}");
 
             result
         });

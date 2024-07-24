@@ -14,12 +14,12 @@ pub trait RequestProtocol: Serialize + DeserializeOwned + Send + 'static {
 
     fn json_to_cbor(json: serde_json::Value) -> BusResult<Vec<u8>> {
         let obj: Self = serde_json::from_value(json)?;
-        let cbor = serde_cbor::ser::to_vec_packed(&obj)?;
+        let cbor = crate::transport::cbor_codec::ser(&obj)?;
         Ok(cbor)
     }
 
     fn cbor_to_json(cbor: &[u8]) -> BusResult<serde_json::Value> {
-        let obj: Self::Rsp = serde_cbor::from_slice(cbor)?;
+        let obj: Self::Rsp = crate::transport::cbor_codec::deser(cbor)?;
         let json = serde_json::to_value(&obj)?;
         Ok(json)
     }

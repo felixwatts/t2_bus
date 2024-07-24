@@ -21,10 +21,18 @@ enum Commands {
         command: ConnectCommands,
     },
     Cat{
+        #[arg(short, long)]
+        topic: Option<String>,
+        #[command(subcommand)]
+        command: ConnectCommands, 
+    },
+    Pub{
+        #[arg(short, long)]
+        topic: String,
+        #[arg(short, long)]
+        value: f32,
         #[command(subcommand)]
         command: ConnectCommands,
-        #[arg(short, long)]
-        topic: Option<String>  
     }
 }
 
@@ -47,58 +55,6 @@ enum ChildSubCommands {
         some_option: Option<String>,
     },
 }
-
-
-// #[derive(Parser)]
-// #[command(version, about, long_about = None)]
-// struct Cli {
-//     #[command(subcommand)]
-//     command: MainCommands
-// }
-
-// #[derive(Subcommand)]
-// enum MainCommands{
-//     /// Start a bus server
-//     Serve{
-//         /// The 
-//         #[arg(short, long)]
-//         addr: TransportParams
-//     },    
-//     // /// Start a bus client
-//     // Connect{
-//     //     #[command(subcommand)]
-//     //     command: ConnectCommands
-//     // }
-// }
-
-// #[derive(Parser)]
-// enum TransportParams{
-//     Unix(UnixParams),
-//     Tcp(TcpParams)
-// }
-
-// #[derive(Parser)]
-// struct ServeParams{
-
-// }
-
-// #[derive(Subcommand)]
-// enum ConnectCommands{
-//     /// Connect to a server using the Unix socket transport
-//     Unix(UnixParams)
-// }
-
-// #[derive(Parser)]
-// struct UnixParams{
-//     /// The Unix socket address to use for connecting or serving. Defaults to .t2
-//     addr: Option<PathBuf>
-// }
-
-// #[derive(Parser)]
-// struct TcpParams{
-//     /// The TCP socket address to use for connecting or serving. Defaults to localhost:4242
-//     addr: Option<SocketAddr>
-// }
 
 #[tokio::main]
 async fn main() {
@@ -126,10 +82,19 @@ async fn run() -> BusResult<()> {
         },
         Commands::Cat { command, topic } => {
             let client = connect(&command).await?;
-            let mut sub = client.subscribe_bytes("**").await?;
+            let topic = topic.unwrap_or("**".into());
+            let mut sub = client.subscribe_bytes(&topic).await?;
             while let Some(msg) = sub.recv().await {
-
+                let bytes: Vec<u8> = msg.payload.into();
+                let number: Number = t2_bus::transport::cbor_codec::deser(&bytes[..])?;
+                let number = number.0;
+                let topic = msg.topic;
+                println!("{topic}: {number}")
             }
+        },
+        Commands::Pub { command, topic, value } => {
+            let client = connect(&command).await?;
+            client.publish(&topic, &Number(value)).await?;
         },
     }
 

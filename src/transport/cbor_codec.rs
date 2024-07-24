@@ -2,6 +2,7 @@ use crate::err::*;
 use bytes::Buf;
 use bytes::BufMut;
 use serde::{de::DeserializeOwned, Serialize};
+use std::io::Cursor;
 use std::marker::PhantomData;
 
 /// The internal codec used within the bus. Can be useful in conjunction with `Client::publish_bytes`, `Client::request_bytes`, `Client::request_bytes_into` and `Client::subscribe_bytes_into`.
@@ -56,7 +57,7 @@ where
                 if buf_len < msg_len {
                     Ok(None)
                 } else {
-                    let msg_res = serde_cbor::from_slice(&src[0..msg_len]);
+                    let msg_res = deser(&src[0..msg_len]);
                     match msg_res {
                         Ok(msg) => {
                             src.advance(msg_len);
@@ -78,9 +79,23 @@ impl<TEncode: Serialize, TDecode> tokio_util::codec::Encoder<TEncode>
     type Error = BusError;
 
     fn encode(&mut self, item: TEncode, dst: &mut bytes::BytesMut) -> Result<(), Self::Error> {
-        let bytes = serde_cbor::to_vec(&item)?;
+        let bytes = ser(&item)?;
         dst.put_u32(bytes.len() as u32);
         dst.put_slice(&bytes);
         Ok(())
     }
+}
+
+/// Serialize using the bus' internal serialization format
+pub fn ser<T: Serialize>(value: &T) -> BusResult<Vec<u8>> {
+    let mut data = vec![];
+    ciborium::into_writer(value, &mut data)?;
+    Ok(data)
+} 
+
+/// Deserialize using the bus' internal serialization format
+pub fn deser<T: DeserializeOwned>(data: &[u8]) -> BusResult<T> {
+    let reader = Cursor::new(data);
+    let t = ciborium::from_reader(reader)?;
+    Ok(t)
 }

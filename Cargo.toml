@@ -21,7 +21,7 @@ lazy_static = "1.4.0"
 futures-util="0.3.5"
 tokio = { version = "1.2.0", features = ["full", "rt"] } # TODO reduce features
 serde = { version = "1.0", features = ["derive"] }
-serde_cbor = "0.11.1"
+ciborium = "0.2.2"
 serde_derive = "1.0.123"
 tokio-util = { version = "0.6.3", features = ["codec"] }
 bytes = "1.0.1"
