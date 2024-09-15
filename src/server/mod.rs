@@ -1,6 +1,7 @@
 mod client_stub;
 pub(crate) mod listen;
 pub(crate) mod core;
+pub mod builder;
 
 use super::transport::Transport;
 use crate::protocol::*;

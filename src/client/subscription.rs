@@ -53,6 +53,7 @@ impl Drop for SubscriptionInto {
 }
 
 /// Represents a subscription to requests on a protocol `T` and topic. Returned by `Client::serve`. 
+///
 /// While you hold this subscription you are expected to process incoming requests and respond promptly using 
 /// `Client::respond`. Drop the `RequestSubscription` object to stop serving.
 pub struct RequestSubscription<T> {

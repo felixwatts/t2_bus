@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 use futures::{stream::FuturesUnordered, StreamExt};
 use tokio::{join, task::JoinHandle};
 use super::protocol::{PublishProtocol, RequestProtocol};
-use crate::{client::Client, err::{BusError, BusResult}, stopper::Stopper};
+use crate::{client::Client, err::{BusError, BusResult}, prelude::ServerBuilder, stopper::Stopper};
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 struct TestPub(pub String);
@@ -26,7 +26,7 @@ impl RequestProtocol for TestReq {
     }
 }
 
-pub fn unique_addr() -> std::path::PathBuf {
+pub(crate) fn unique_addr() -> std::path::PathBuf {
     std::path::PathBuf::from(format!("/tmp/{}", uuid::Uuid::new_v4()))
 }
 
@@ -394,4 +394,45 @@ async fn test_respond_with_bad_request_id() {
     // assert_eq!(BusResult::Err(BusError::RequestFailedTimeout), rsp_result);
 
     let _ = tokio::try_join!(ping_task).unwrap();
+}
+
+#[tokio::test]
+async fn test_multi_transport(){
+    let unix_addr = crate::test::unique_addr();
+    let tcp_addr = "localhost:8445";
+
+    let (stopper, memory_connector) = ServerBuilder::new()
+        .serve_memory().await.unwrap()
+        .serve_unix_socket(&unix_addr).unwrap()
+        .serve_tcp(tcp_addr).await.unwrap()
+        .build()
+        .unwrap();
+
+    let memory_client = crate::transport::memory::connect(&memory_connector.unwrap()).unwrap();
+    let unix_client = crate::transport::unix::connect(&unix_addr).await.unwrap();
+    let tcp_client = crate::transport::tcp::connect(tcp_addr).await.unwrap();
+
+    let mut memory_client_sub = memory_client.subscribe::<TestPub>("*").await.unwrap();
+    let mut unix_client_sub = unix_client.subscribe::<TestPub>("*").await.unwrap();
+    let mut tcp_client_sub = tcp_client.subscribe::<TestPub>("*").await.unwrap();
+
+    let memory_client_test_msg = TestPub("m".into());
+    memory_client.publish("m", &memory_client_test_msg).await.unwrap();
+    assert_eq!(memory_client_test_msg, memory_client_sub.recv().await.unwrap().1);
+    assert_eq!(memory_client_test_msg, unix_client_sub.recv().await.unwrap().1);
+    assert_eq!(memory_client_test_msg, tcp_client_sub.recv().await.unwrap().1);
+
+    let unix_client_test_msg = TestPub("u".into());
+    unix_client.publish("u", &unix_client_test_msg).await.unwrap();
+    assert_eq!(unix_client_test_msg, memory_client_sub.recv().await.unwrap().1);
+    assert_eq!(unix_client_test_msg, unix_client_sub.recv().await.unwrap().1);
+    assert_eq!(unix_client_test_msg, tcp_client_sub.recv().await.unwrap().1);
+
+    let tcp_client_test_msg = TestPub("t".into());
+    tcp_client.publish("t", &tcp_client_test_msg).await.unwrap();
+    assert_eq!(tcp_client_test_msg, memory_client_sub.recv().await.unwrap().1);
+    assert_eq!(tcp_client_test_msg, unix_client_sub.recv().await.unwrap().1);
+    assert_eq!(tcp_client_test_msg, tcp_client_sub.recv().await.unwrap().1);
+
+    assert_eq!(Err(BusError::ChannelClosed), stopper.stop().await);
 }
