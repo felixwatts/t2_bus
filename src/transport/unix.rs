@@ -28,9 +28,7 @@ pub async fn connect(
     addr: &PathBuf,
 ) -> BusResult<Client> {
     let socket = UnixStream::connect(addr).await?;
-    let transport = tokio_util::codec::Framed::new(socket, CborCodec::new());
-    let client = Client::new(transport)?;
-    Ok(client)
+    Ok(socket.into())
 }
 
 pub(crate) struct UnixListener(tokio::net::UnixListener);

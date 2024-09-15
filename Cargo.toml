@@ -34,7 +34,8 @@ thiserror = "1.0.24"
 tokio-rustls = { version = "0.26.0", optional = false }
 rustls-pemfile = "2.1.2"
 clap = { version = "4.5.9", features = ["derive"] }
-# web_pki = "0.22.40"
+websocket = "0.27.1"
+webpki-roots = "0.26.3"
 
 [dev-dependencies]
 uuid = { version = "1.10.0", features = ["v4"] }

@@ -1,12 +1,8 @@
 use std::convert::TryFrom;
-
 use std::fs::File;
 use std::io::BufReader;
-
-
 use std::path::Path;
 use std::sync::Arc;
-
 use rustls_pemfile::certs;
 use rustls_pemfile::private_key;
 use tokio::net::{TcpStream, ToSocketAddrs};
@@ -21,12 +17,9 @@ use tokio_rustls::TlsAcceptor;
 use tokio_rustls::TlsConnector;
 use tokio_rustls::client::TlsStream;
 use tokio_util::codec::Framed;
-
-
 use crate::server::listen::listen_and_serve;
 use crate::stopper::MultiStopper;
 use crate::{protocol::{Msg, ProtocolClient, ProtocolServer}, server::listen::Listener, err::BusResult, transport::CborCodec};
-
 use super::BusError;
 use super::Transport;
 

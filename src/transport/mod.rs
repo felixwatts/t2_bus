@@ -6,6 +6,7 @@ pub mod memory;
 pub mod unix;
 pub mod tcp;
 pub mod tls;
+pub mod ws;
 
 pub trait Transport<TSend, TRecv>:
     'static

@@ -46,9 +46,7 @@ pub async fn connect (
     addr: impl ToSocketAddrs,
 ) -> BusResult<Client> {
     let socket = tokio::net::TcpStream::connect(addr).await?;
-    let transport = tokio_util::codec::Framed::new(socket, CborCodec::new());
-    let client = Client::new(transport)?;
-    Ok(client)
+    Ok(socket.into())
 }
 
 struct TcpListener(tokio::net::TcpListener);

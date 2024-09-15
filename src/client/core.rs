@@ -81,7 +81,7 @@ where
     pub fn start(
         transport: TTransport,
         task_receiver: tokio::sync::mpsc::UnboundedReceiver<Task>,
-    ) -> BusResult<JoinHandle<BusResult<()>>> {
+    ) -> JoinHandle<BusResult<()>> {
         let mut core = ClientCore {
             transport,
             subscriptions: Directory::new(),
@@ -105,7 +105,7 @@ where
             result
         });
 
-        Ok(handle)
+        handle
     }
 
     async fn main_loop(&mut self) -> BusResult<()> {

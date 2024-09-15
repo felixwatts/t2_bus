@@ -31,7 +31,7 @@ pub fn connect(
     connector: &MemoryConnector,
 ) -> BusResult<Client> {
     let transport = connector.connect()?;
-    Client::new(transport)
+    Ok(Client::new(transport))
 }
 
 pub struct MemoryTransport<TSend, TRecv> {

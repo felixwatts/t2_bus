@@ -7,12 +7,16 @@ use super::{
     topic::prefix_topic,
     transport::Transport,
 };
+use crate::prelude::CborCodec;
 use crate::protocol::*;
 use crate::err::*;
 
 
+use std::convert::TryFrom;
 use std::{time::Duration};
 
+use futures::AsyncRead;
+use futures::AsyncWrite;
 use tokio::{
     sync::mpsc::unbounded_channel, sync::mpsc::UnboundedSender, task::JoinHandle, time::timeout,
 };
@@ -20,22 +24,24 @@ use tokio::{
 const ACK_TIMEOUT_S: u64 = 5;
 
 /// A client of the bus. Provides a client-side API for all bus features including publish, subscribe, request and respond.
-// #[derive(Clone)]
 pub struct Client {
     task_sender: tokio::sync::mpsc::UnboundedSender<Task>,
     core_join_handle: JoinHandle<BusResult<()>>
 }
 
+impl<T> From<T> for Client where T: 'static + tokio::io::AsyncRead + tokio::io::AsyncWrite + Send + Unpin {
+    fn from(socket: T) -> Self {
+        let transport = tokio_util::codec::Framed::new(socket, CborCodec::new());
+        Client::new(transport)
+    }
+}
+
 impl Client {
-    pub(crate) fn new(transport: impl Transport<ProtocolClient, ProtocolServer>) -> BusResult<Client>
+    pub(crate) fn new(transport: impl Transport<ProtocolClient, ProtocolServer>) -> Client
     {
         let (task_sender, task_receiver) = tokio::sync::mpsc::unbounded_channel();
-
-        let core_join_handle = ClientCore::start(transport, task_receiver)?;
-
-        let client = Client { task_sender, core_join_handle };
-
-        Ok(client)
+        let core_join_handle = ClientCore::start(transport, task_receiver);
+        Client { task_sender, core_join_handle }
     }
 
     /// Send a stop message to the bus itself. The bus will terminate.
