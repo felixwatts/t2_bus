@@ -76,7 +76,7 @@ pub async fn connect (
     Ok(transport)
 }
 
-struct TlsListener{
+pub (crate) struct TlsListener{
     listener: tokio::net::TcpListener,
     tls_acceptor: TlsAcceptor
 }

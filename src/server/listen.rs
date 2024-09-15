@@ -6,7 +6,6 @@ use super::{core::Core, ProtocolClient, ProtocolServer, Task};
 
 pub (crate) trait Listener: 'static + Send {
     fn accept(&mut self) -> impl std::future::Future<Output = BusResult<impl Transport<ProtocolServer, ProtocolClient>>> + std::marker::Send;
-    // async fn accept(&mut self) -> BusResult<impl Transport<ProtocolServer, ProtocolClient>>;
 }
 
 pub(crate) fn listen_and_serve(listener: impl Listener) -> BusResult<MultiStopper> {
@@ -17,7 +16,7 @@ pub(crate) fn listen_and_serve(listener: impl Listener) -> BusResult<MultiStoppe
     Ok(stopper)
 }
 
-fn listen(
+pub(crate) fn listen(
     mut listener: impl Listener,
     register_channel: UnboundedSender<Task>,
 ) -> BusResult<BasicStopper> {

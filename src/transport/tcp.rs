@@ -51,7 +51,7 @@ pub async fn connect (
     Ok(client)
 }
 
-struct TcpListener(tokio::net::TcpListener);
+pub(crate) struct TcpListener(tokio::net::TcpListener);
 
 impl TcpListener{
     pub(crate) async fn new(addr: impl ToSocketAddrs) -> BusResult<Self>{
