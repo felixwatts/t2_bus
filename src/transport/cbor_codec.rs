@@ -37,17 +37,14 @@ where
     fn decode(&mut self, src: &mut bytes::BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let buf_len = src.len();
 
-        match self.msg_len {
-            None => {
-                if buf_len < 4 {
-                    return Ok(None);
-                } else {
-                    let msg_len = src.get_u32() as usize;
-                    src.reserve(msg_len);
-                    self.msg_len = Some(msg_len);
-                }
+        if self.msg_len.is_none() {
+            if buf_len < 4 {
+                return Ok(None);
+            } else {
+                let msg_len = src.get_u32() as usize;
+                src.reserve(msg_len);
+                self.msg_len = Some(msg_len);
             }
-            Some(_) => {}
         }
 
         let buf_len = src.len();

@@ -9,6 +9,12 @@ pub struct ServerBuilder{
     memory_connector: Option<MemoryConnector>
 }
 
+impl Default for ServerBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ServerBuilder{
     pub fn new() -> Self{
         ServerBuilder{
