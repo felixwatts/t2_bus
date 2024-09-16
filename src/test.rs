@@ -429,17 +429,6 @@ async fn malformed_message_doesnt_crash_server(){
 }
 
 #[tokio::test]
-async fn test_keep_alive(){
-    let (c1, c2, stopper) = setup_tcp().await;
-
-    tokio::time::sleep(Duration::from_secs(30)).await;
-
-    let result = stopper.stop().await;
-
-    assert!(result.is_ok());
-}
-
-#[tokio::test]
 async fn test_multi_transport(){
     let unix_addr = crate::test::unique_addr();
     let tcp_addr = "localhost:8445";

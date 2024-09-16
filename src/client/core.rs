@@ -58,8 +58,7 @@ pub(crate) enum Task {
     Unsub(TaskUnsub),
     Unsrv(TaskUnsrv),
     Stop,
-    StopBus(TaskStopBus),
-    KeepAlive
+    StopBus(TaskStopBus)
 }
 
 pub(crate) struct ClientCore<TTransport>
@@ -111,8 +110,6 @@ where
     }
 
     async fn main_loop(&mut self) -> BusResult<()> {
-        let mut keep_alive_interval = tokio::time::interval(Duration::from_secs(5));
-
         loop {
             tokio::select! {
                 // message from server
@@ -133,9 +130,6 @@ where
                             return Ok(())
                         }
                     }
-                },
-                _ = keep_alive_interval.tick() => {
-                    self.send(Task::KeepAlive).await?;
                 }
             }
         }
@@ -221,8 +215,7 @@ where
                     id,
                     content: ProtocolClient::Stop,
                 }
-            },
-            Task::KeepAlive => Msg{ id, content: ProtocolClient::KeepAlive }
+            }
         };
 
         Ok(msg)

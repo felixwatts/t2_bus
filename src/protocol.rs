@@ -90,8 +90,7 @@ pub enum ProtocolClient {
     Rsp(RspMsg),
     Unsub(UnsubMsg),
     Unsrv(UnsrvMsg),
-    Stop,
-    KeepAlive
+    Stop
 }
 
 // The message type sent from the server to the client
