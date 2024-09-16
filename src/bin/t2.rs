@@ -112,9 +112,9 @@ async fn build_client(tcp: &Option<SocketAddr>, unix: &Option<PathBuf>) -> Resul
         None => {
             match unix {
                 Some(addr) => {
-                    Ok(t2_bus::transport::unix::connect(&addr).await?)
+                    Ok(t2_bus::transport::unix::connect(addr).await?)
                 },
-                None => { return Err(Error("You must specify either a unix or a tcp connection".into())); }
+                None => { Err(Error("You must specify either a unix or a tcp connection".into()))}
             }
         }
     }
