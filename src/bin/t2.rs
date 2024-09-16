@@ -132,7 +132,7 @@ async fn run() -> Result<(), Error> {
                     format!("0x{}", &hex::encode(bytes))
                 };
 
-                println!("{topic}: {val_str}")
+                println!("{}: {val_str}", msg.topic)
             }
         },
         Commands::Pub { tcp, unix, topic, value } => {
