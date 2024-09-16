@@ -17,28 +17,58 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Serve {
-        #[arg(short, long)]
+        #[arg(long)]
         tcp: Vec<SocketAddr>,
-        #[arg(short, long)]
+        #[arg(long)]
         unix: Vec<PathBuf>,
     },
-    Cat{
-        #[arg(short, long)]
-        topic: Option<String>,
-        #[arg(short, long)]
+    Sub{
+        #[arg(long)]
+        topic: String,
+        #[arg(long)]
         tcp: Option<SocketAddr>,
-        #[arg(short, long)]
+        #[arg(long)]
         unix: Option<PathBuf>,
     },
     Pub{
-        #[arg(short, long)]
+        #[arg(long)]
         topic: String,
-        #[arg(short, long)]
-        value: f32,
-        #[arg(short, long)]
+        #[arg(long)]
+        value: String,
+        #[arg(long)]
         tcp: Option<SocketAddr>,
-        #[arg(short, long)]
+        #[arg(long)]
         unix: Option<PathBuf>,
+    }
+}
+
+impl Commands{
+    fn validate(&self) -> Result<(), Error> {
+        match self{
+            Commands::Serve { .. } => Ok(()),
+            Commands::Sub { tcp, unix, .. } => {
+
+                if tcp.is_none() == unix.is_none() {
+                    return Err(Error("You must specify either a tcp or a unix connection.".into()))
+                }
+                Ok(())
+            },
+            Commands::Pub { topic, value, tcp, unix } => {
+                if tcp.is_none() == unix.is_none() {
+                    return Err(Error("You must specify either a tcp or a unix connection.".into()))
+                }
+
+                if !(topic.starts_with("f32/") || topic.starts_with("string/")) {
+                    return Err(Error("Unknown protocol".into()))
+                }
+
+                if topic.starts_with("f32/") && value.parse::<f32>().is_err() {
+                    return Err(Error("When the topic starts with f32/ then the value must be a valid f32".into()))
+                }
+
+                Ok(())
+            },
+        }
     }
 }
 
@@ -64,11 +94,10 @@ async fn main() {
 }
 
 async fn run() -> Result<(), Error> {
-    let command = Cli::parse();
-    match command.command {
+    let cli = Cli::parse();
+    cli.command.validate()?;
+    match cli.command {
         Commands::Serve { tcp, unix } => {
-
-
             let mut builder = t2_bus::prelude::ServerBuilder::new();
 
             for addr in tcp.into_iter() {
@@ -83,21 +112,38 @@ async fn run() -> Result<(), Error> {
 
             stopper.join().await?;
         },
-        Commands::Cat { tcp, unix, topic } => {
+        Commands::Sub { tcp, unix, topic } => {
             let client = build_client(&tcp, &unix).await?;
-            let topic = topic.unwrap_or("**".into());
+
             let mut sub = client.subscribe_bytes(&topic).await?;
             while let Some(msg) = sub.recv().await {
-                let bytes: Vec<u8> = msg.payload.into();
-                let number: Number = t2_bus::transport::cbor_codec::deser(&bytes[..])?;
-                let number = number.0;
-                let topic = msg.topic;
-                println!("{topic}: {number}")
+
+                let val_str = if topic.starts_with("f32/") {
+                    let bytes: Vec<u8> = msg.payload.into();
+                    let payload: F32Protocol = t2_bus::transport::cbor_codec::deser(&bytes[..])?;
+                    payload.0.to_string()
+                } else if topic.starts_with("string/") {
+                    let bytes: Vec<u8> = msg.payload.into();
+                    let payload: StringProtocol = t2_bus::transport::cbor_codec::deser(&bytes[..])?;
+                    payload.0
+                } else {
+                    let bytes: Vec<u8> = msg.payload.into();
+                    format!("0x{}", &hex::encode(bytes))
+                };
+
+                println!("{topic}: {val_str}")
             }
         },
         Commands::Pub { tcp, unix, topic, value } => {
             let client = build_client(&tcp, &unix).await?;
-            client.publish(&topic, &Number(value)).await?;
+            let payload = if topic.starts_with("f32/") {
+                t2_bus::transport::cbor_codec::ser(&F32Protocol(value.parse().unwrap()))?
+
+            } else {
+                t2_bus::transport::cbor_codec::ser(&StringProtocol(value.parse().unwrap()))?
+            };
+
+            client.publish_bytes(&topic, payload).await?;
         },
     }
 
@@ -121,10 +167,19 @@ async fn build_client(tcp: &Option<SocketAddr>, unix: &Option<PathBuf>) -> Resul
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-struct Number(f32);
+struct F32Protocol(f32);
 
-impl PublishProtocol for Number{
+impl PublishProtocol for F32Protocol{
     fn prefix() -> &'static str {
-        "number"
+        "f32"
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct StringProtocol(String);
+
+impl PublishProtocol for StringProtocol{
+    fn prefix() -> &'static str {
+        "string"
     }
 }
