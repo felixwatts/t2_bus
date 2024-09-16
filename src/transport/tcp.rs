@@ -1,28 +1,11 @@
-
-
-
-
-
-
-
-
-use tokio::net::{ToSocketAddrs};
-
-
-
-
-
-
-
-
-
+use std::time::Duration;
+use tokio::net::{lookup_host, ToSocketAddrs};
 use crate::client::Client;
 use crate::server::listen::listen_and_serve;
 use crate::stopper::MultiStopper;
 use crate::{protocol::{ProtocolClient, ProtocolServer}, server::listen::Listener, err::BusResult, transport::CborCodec};
 
-
-use super::Transport;
+use super::{BusError, Transport};
 
 /// Start a bus server using the TCP socket transport. You can then connect to
 /// and use the bus from within a separate host.
@@ -45,8 +28,11 @@ pub async fn serve(addr: impl ToSocketAddrs) -> BusResult<MultiStopper> {
 pub async fn connect (
     addr: impl ToSocketAddrs,
 ) -> BusResult<Client> {
-    let socket = tokio::net::TcpStream::connect(addr).await?;
-    let transport = tokio_util::codec::Framed::new(socket, CborCodec::new());
+    let socket = tokio::net::TcpSocket::new_v4()?;
+    socket.set_keepalive(true)?;
+    let addr = lookup_host(addr).await?.into_iter().next().ok_or(BusError::DnsLookupFailed)?;
+    let stream = socket.connect(addr).await?;
+    let transport = tokio_util::codec::Framed::new(stream, CborCodec::new());
     let client = Client::new(transport)?;
     Ok(client)
 }

@@ -170,7 +170,6 @@ impl Core {
                     ProtocolClient::Req(params) => self.request(client_id, msg.id, params),
                     ProtocolClient::Rsp(params) => self.respond(client_id, params),
                     ProtocolClient::Stop => Ok(()),
-                    ProtocolClient::KeepAlive => Ok(()),
                     _ => panic!(),
                 };
                 result.map(|_| None)

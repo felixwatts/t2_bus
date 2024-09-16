@@ -41,7 +41,10 @@ pub enum BusError{
     InternalError(String),
 
     #[error("TLS configuration error: {0}")]
-    TlsConfigError(String)
+    TlsConfigError(String),
+
+    #[error("DNS lookup failed")]
+    DnsLookupFailed
 }
 
 impl<T> From<ciborium::ser::Error<T>> for BusError {
