@@ -152,7 +152,7 @@ impl Core {
         #[cfg(debug_assertions)]
         {
             let log_msg = crate::debug::client_msg_to_string(&msg);
-            println!("B [{}] --> [B] {}", client_id, &log_msg);
+            println!("[B] <-- [{}] {}", client_id, &log_msg);
         }
 
         let stop = matches!(msg.content, ProtocolClient::Stop);
@@ -170,6 +170,7 @@ impl Core {
                     ProtocolClient::Req(params) => self.request(client_id, msg.id, params),
                     ProtocolClient::Rsp(params) => self.respond(client_id, params),
                     ProtocolClient::Stop => Ok(()),
+                    ProtocolClient::KeepAlive => Ok(()),
                     _ => panic!(),
                 };
                 result.map(|_| None)
@@ -310,7 +311,7 @@ impl Core {
         #[cfg(debug_assertions)]
         {
             let log_msg = crate::debug::server_msg_to_string(&msg);
-            println!("B [{}] <-- [B] {}", client_id, &log_msg);
+            println!("[B] --> [{}] {}", client_id, &log_msg);
         }
 
         let client_opt = self.protocol_server_senders.get_mut(&client_id);

@@ -118,7 +118,6 @@ async fn run() -> Result<(), Error> {
 
             let mut sub = client.subscribe_bytes(&topic).await?;
             while let Some(msg) = sub.recv().await {
-
                 let val_str = if msg.topic.starts_with("f32/") {
                     let bytes: Vec<u8> = msg.payload.into();
                     let payload: F32Protocol = t2_bus::transport::cbor_codec::deser(&bytes[..])?;

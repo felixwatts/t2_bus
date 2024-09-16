@@ -91,6 +91,7 @@ pub enum ProtocolClient {
     Unsub(UnsubMsg),
     Unsrv(UnsrvMsg),
     Stop,
+    KeepAlive
 }
 
 // The message type sent from the server to the client
