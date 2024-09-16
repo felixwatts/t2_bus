@@ -1,4 +1,4 @@
-use std::{fmt::Display, net::{Ipv4Addr, SocketAddr}, path::PathBuf};
+use std::{fmt::Display, net::SocketAddr, path::PathBuf};
 use clap::{command, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use t2_bus::prelude::*;
