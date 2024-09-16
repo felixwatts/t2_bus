@@ -2,6 +2,7 @@ use std::{fmt::Display, net::SocketAddr, path::PathBuf};
 use clap::{command, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use t2_bus::prelude::*;
+use tokio::net::ToSocketAddrs;
 
 
 pub const DEFAULT_BUS_ADDR: &str = ".t2";
@@ -26,7 +27,7 @@ enum Commands {
         #[arg(long)]
         topic: String,
         #[arg(long)]
-        tcp: Option<SocketAddr>,
+        tcp: Option<String>,
         #[arg(long)]
         unix: Option<PathBuf>,
     },
@@ -36,7 +37,7 @@ enum Commands {
         #[arg(long)]
         value: String,
         #[arg(long)]
-        tcp: Option<SocketAddr>,
+        tcp: Option<String>,
         #[arg(long)]
         unix: Option<PathBuf>,
     }
@@ -150,7 +151,7 @@ async fn run() -> Result<(), Error> {
     Ok(())
 }
 
-async fn build_client(tcp: &Option<SocketAddr>, unix: &Option<PathBuf>) -> Result<Client, Error>{
+async fn build_client(tcp: &Option<impl ToSocketAddrs>, unix: &Option<PathBuf>) -> Result<Client, Error>{
     match tcp {
         Some(addr) => {
             Ok(t2_bus::transport::tcp::connect(addr).await?)
