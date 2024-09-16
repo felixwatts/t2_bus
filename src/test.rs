@@ -402,10 +402,11 @@ async fn test_multi_transport(){
     let tcp_addr = "localhost:8445";
 
     let (stopper, memory_connector) = ServerBuilder::new()
-        .serve_memory().await.unwrap()
-        .serve_unix_socket(&unix_addr).unwrap()
-        .serve_tcp(tcp_addr).await.unwrap()
+        .serve_memory()
+        .serve_unix_socket(unix_addr.clone())
+        .serve_tcp(tcp_addr.parse().unwrap())
         .build()
+        .await
         .unwrap();
 
     let memory_client = crate::transport::memory::connect(&memory_connector.unwrap()).unwrap();

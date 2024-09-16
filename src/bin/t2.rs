@@ -1,4 +1,4 @@
-use std::{net::{Ipv4Addr, SocketAddr}, path::PathBuf};
+use std::{fmt::Display, net::{Ipv4Addr, SocketAddr}, path::PathBuf};
 use clap::{command, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use t2_bus::prelude::*;
@@ -17,43 +17,43 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Serve {
-        #[command(subcommand)]
-        command: ConnectCommands,
+        #[arg(short, long)]
+        tcp: Vec<SocketAddr>,
+        #[arg(short, long)]
+        unix: Vec<PathBuf>,
     },
     Cat{
         #[arg(short, long)]
         topic: Option<String>,
-        #[command(subcommand)]
-        command: ConnectCommands, 
+        #[arg(short, long)]
+        tcp: Option<SocketAddr>,
+        #[arg(short, long)]
+        unix: Option<PathBuf>,
     },
     Pub{
         #[arg(short, long)]
         topic: String,
         #[arg(short, long)]
         value: f32,
-        #[command(subcommand)]
-        command: ConnectCommands,
-    }
-}
-
-#[derive(Subcommand)]
-enum ConnectCommands {
-    Unix {
-        // #[arg(short, long)]
-        addr: Option<PathBuf>
-    },
-    Tcp{
-        // #[arg(short, long)]
-        addr: Option<SocketAddr>
-    }
-}
-
-#[derive(Subcommand)]
-enum ChildSubCommands {
-    Grandchild {
         #[arg(short, long)]
-        some_option: Option<String>,
-    },
+        tcp: Option<SocketAddr>,
+        #[arg(short, long)]
+        unix: Option<PathBuf>,
+    }
+}
+
+struct Error(String);
+
+impl From<BusError> for Error{
+    fn from(value: BusError) -> Self {
+        Self(value.to_string())
+    }
+}
+
+impl Display for Error{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", &self.0)
+    }
 }
 
 #[tokio::main]
@@ -63,25 +63,28 @@ async fn main() {
     }
 }
 
-async fn run() -> BusResult<()> {
+async fn run() -> Result<(), Error> {
     let command = Cli::parse();
     match command.command {
-        Commands::Serve { command } => {
-            match command {
-                ConnectCommands::Unix{addr} => {
-                    let addr = addr.unwrap_or(DEFAULT_BUS_ADDR.into());
-                    let stopper = t2_bus::transport::unix::serve(&addr)?;
-                    stopper.join().await?;
-                },
-                ConnectCommands::Tcp { addr } => {
-                    let addr = addr.unwrap_or(SocketAddr::new(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), DEFAULT_BUS_PORT));
-                    let stopper = t2_bus::transport::tcp::serve(&addr).await?;
-                    stopper.join().await?;
-                },
+        Commands::Serve { tcp, unix } => {
+
+
+            let mut builder = t2_bus::prelude::ServerBuilder::new();
+
+            for addr in tcp.into_iter() {
+                builder = builder.serve_tcp(addr);
             }
+
+            for addr in unix.into_iter() {
+                builder = builder.serve_unix_socket(addr);
+            }
+
+            let (stopper, _) = builder.build().await?;
+
+            stopper.join().await?;
         },
-        Commands::Cat { command, topic } => {
-            let client = connect(&command).await?;
+        Commands::Cat { tcp, unix, topic } => {
+            let client = build_client(&tcp, &unix).await?;
             let topic = topic.unwrap_or("**".into());
             let mut sub = client.subscribe_bytes(&topic).await?;
             while let Some(msg) = sub.recv().await {
@@ -92,8 +95,8 @@ async fn run() -> BusResult<()> {
                 println!("{topic}: {number}")
             }
         },
-        Commands::Pub { command, topic, value } => {
-            let client = connect(&command).await?;
+        Commands::Pub { tcp, unix, topic, value } => {
+            let client = build_client(&tcp, &unix).await?;
             client.publish(&topic, &Number(value)).await?;
         },
     }
@@ -101,16 +104,19 @@ async fn run() -> BusResult<()> {
     Ok(())
 }
 
-async fn connect(command: &ConnectCommands) -> BusResult<Client> {
-    match command {
-        ConnectCommands::Unix{addr} => {
-            let addr = addr.to_owned().unwrap_or(DEFAULT_BUS_ADDR.into());
-            t2_bus::transport::unix::connect(&addr).await
+async fn build_client(tcp: &Option<SocketAddr>, unix: &Option<PathBuf>) -> Result<Client, Error>{
+    match tcp {
+        Some(addr) => {
+            Ok(t2_bus::transport::tcp::connect(addr).await?)
         },
-        ConnectCommands::Tcp { addr } => {
-            let addr = addr.unwrap_or(SocketAddr::new(std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), DEFAULT_BUS_PORT));
-            t2_bus::transport::tcp::connect(addr).await
-        },
+        None => {
+            match unix {
+                Some(addr) => {
+                    Ok(t2_bus::transport::unix::connect(&addr).await?)
+                },
+                None => { return Err(Error("You must specify either a unix or a tcp connection".into())); }
+            }
+        }
     }
 }
 

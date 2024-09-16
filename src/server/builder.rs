@@ -1,12 +1,12 @@
-use std::path::PathBuf;
-use tokio::{net::ToSocketAddrs, sync::mpsc::UnboundedSender};
+use std::{net::SocketAddr, path::PathBuf};
+use futures::{future::join_all, stream::{FuturesOrdered, FuturesUnordered}, StreamExt};
+use tokio::{net::{ToSocketAddrs}, sync::mpsc::UnboundedSender};
 use crate::{err::BusResult, stopper::{BasicStopper, MultiStopper}, transport::{memory::{MemoryConnector, MemoryListener}, tcp::TcpListener, unix::UnixListener}};
 use crate::server::Task;
 use super::core::Core;
 
 pub struct ServerBuilder{
-    listeners: Vec<ListenerEnum>,
-    memory_connector: Option<MemoryConnector>
+    listeners: Vec<ListenerEnum>
 }
 
 impl Default for ServerBuilder {
@@ -18,58 +18,75 @@ impl Default for ServerBuilder {
 impl ServerBuilder{
     pub fn new() -> Self{
         ServerBuilder{
-            listeners: vec![],
-            memory_connector: None
+            listeners: vec![]
         }
     }
     
-    pub fn serve_unix_socket(mut self, addr: &PathBuf) -> BusResult<Self> {
-        self.listeners.push(ListenerEnum::Unix(UnixListener::new(addr)?));
-        Ok(self)
+    pub fn serve_unix_socket(mut self, addr: PathBuf) -> Self {
+        self.listeners.push(ListenerEnum::Unix(addr));
+        self
     }
 
-    pub async fn serve_tcp(mut self, addr: impl ToSocketAddrs) -> BusResult<Self> {
-        self.listeners.push(ListenerEnum::Tcp(TcpListener::new(addr).await?));
-        Ok(self)
+    pub fn serve_tcp(mut self, addr: SocketAddr) -> Self {
+        self.listeners.push(ListenerEnum::Tcp(addr));
+        self
     }
 
-    pub async fn serve_memory(mut self) -> BusResult<Self> {
-        if self.listeners.iter().any(|l| matches!(l, ListenerEnum::Memory(_))) {
-            return Ok(self);
+    pub fn serve_memory(mut self) -> Self {
+        if !self.listeners.iter().any(|l| matches!(l, ListenerEnum::Memory)) {
+            self.listeners.push(ListenerEnum::Memory);
         }
-        let (listener, connector) = MemoryListener::new();
-        self.memory_connector = Some(connector);
-        self.listeners.push(ListenerEnum::Memory(listener));
-        Ok(self)
+        self
     }
 
-    pub fn build(mut self) -> BusResult<(MultiStopper, Option<MemoryConnector>)> {
+    pub async fn build(mut self) -> BusResult<(MultiStopper, Option<MemoryConnector>)> {
         let mut core = Core::new();
-        let mut stoppers = self
+        let listen_results = join_all(self
             .listeners
             .drain(..)
-            .map(|l| l.listen(core.get_task_sender()))
-            .collect::<BusResult<Vec<BasicStopper>>>()?;
+            .map(|l| l.listen(core.get_task_sender())))
+            .await
+            .into_iter()
+            .collect::<BusResult<Vec<(BasicStopper, Option<MemoryConnector>)>>>()?;
         let core_stopper = core.spawn()?;
+        let (mut stoppers, memory_connector) = listen_results
+            .into_iter()
+            .fold((vec![], None), |(mut stoppers, memory_connector), next_result| { 
+                stoppers.push(next_result.0);
+                let memory_connector = memory_connector.or(next_result.1);
+                (stoppers, memory_connector)
+            });
         stoppers.push(core_stopper);
         let stopper = MultiStopper::new(stoppers);
-        Ok((stopper, self.memory_connector))
+        Ok((stopper, memory_connector))
     }
 }
 
 enum ListenerEnum{
-    Memory(MemoryListener),
-    Tcp(TcpListener),
+    Memory,
+    Tcp(SocketAddr),
     // Tls(TlsListener),
-    Unix(UnixListener)
+    Unix(PathBuf)
 }
 
 impl ListenerEnum{
-    fn listen(self, register_channel: UnboundedSender<Task>) -> BusResult<BasicStopper>{
+    async fn listen(self, register_channel: UnboundedSender<Task>) -> BusResult<(BasicStopper, Option<MemoryConnector>)>{
         match self{
-            ListenerEnum::Memory(l) => crate::server::listen::listen(l, register_channel),
-            ListenerEnum::Unix(l) => crate::server::listen::listen(l, register_channel),
-            ListenerEnum::Tcp(l) => crate::server::listen::listen(l, register_channel),
+            ListenerEnum::Memory => {
+                let (listener, connector) = MemoryListener::new();
+                let stopper = crate::server::listen::listen(listener, register_channel)?;
+                Ok((stopper, Some(connector)))
+            },
+            ListenerEnum::Unix(addr) => {
+                let listener = UnixListener::new(&addr)?;
+                let stopper = crate::server::listen::listen(listener, register_channel)?;
+                Ok((stopper, None))
+            },
+            ListenerEnum::Tcp(addr) => {
+                let listener = TcpListener::new(addr).await?;
+                let stopper = crate::server::listen::listen(listener, register_channel)?;
+                Ok((stopper, None))
+            },
         }
     }
 }
