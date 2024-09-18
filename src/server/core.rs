@@ -125,16 +125,13 @@ impl Core {
             ClientStub::new(client_id, transport, self.task_sender.clone())?;
 
         tokio::spawn(async move {
-            #[cfg(debug_assertions)]
             println!("Client #{} connected", client_id);
 
-            #[cfg(debug_assertions)]
             match client.serve().await {
                 Ok(_) | Err(BusError::ChannelClosed) => {}
                 Err(e) => println!("Client #{}: Error: {:?}", client_id, e)
             }
 
-            #[cfg(debug_assertions)]
             println!("Client #{} disconnected", client_id);
         });
 
