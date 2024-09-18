@@ -128,9 +128,10 @@ impl Core {
             #[cfg(debug_assertions)]
             println!("Client #{} connected", client_id);
 
-            if let Err(e) = client.serve().await {
-                #[cfg(debug_assertions)]
-                println!("Client #{}: Error: {:?}", client_id, e);
+            #[cfg(debug_assertions)]
+            match client.serve().await {
+                Ok(_) | Err(BusError::ChannelClosed) => {}
+                Err(e) => println!("Client #{}: Error: {:?}", client_id, e)
             }
 
             #[cfg(debug_assertions)]
@@ -170,7 +171,8 @@ impl Core {
                     ProtocolClient::Req(params) => self.request(client_id, msg.id, params),
                     ProtocolClient::Rsp(params) => self.respond(client_id, params),
                     ProtocolClient::Stop => Ok(()),
-                    _ => panic!(),
+                    ProtocolClient::KeepAlive => Ok(()),
+                    ProtocolClient::Pub(_) => panic!(),
                 };
                 result.map(|_| None)
             }

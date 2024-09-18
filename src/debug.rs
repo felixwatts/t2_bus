@@ -23,7 +23,9 @@ pub fn client_msg_to_string(msg: &Msg<ProtocolClient>) -> String {
         ProtocolClient::Unsrv(params) => format!("UNSRV {}", &params.topic),
         ProtocolClient::Req(params) => format!("REQ   {} ({})", &params.topic, &params.payload),
         ProtocolClient::Rsp(params) => format!("RSP   #{} ({})", &params.req_id, &params.payload),
-        ProtocolClient::Stop => "STOP".to_string()
+        ProtocolClient::Stop => "STOP".to_string(),
+        ProtocolClient::KeepAlive => "KEEP_ALIVE".to_string(),
+
     };
     format!("{:>6} {}", &msg.id, &content)
 }

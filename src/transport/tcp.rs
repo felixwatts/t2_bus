@@ -1,4 +1,3 @@
-use std::time::Duration;
 use tokio::net::{lookup_host, ToSocketAddrs};
 use crate::client::Client;
 use crate::server::listen::listen_and_serve;
@@ -30,7 +29,7 @@ pub async fn connect (
 ) -> BusResult<Client> {
     let socket = tokio::net::TcpSocket::new_v4()?;
     socket.set_keepalive(true)?;
-    let addr = lookup_host(addr).await?.into_iter().next().ok_or(BusError::DnsLookupFailed)?;
+    let addr = lookup_host(addr).await?.next().ok_or(BusError::DnsLookupFailed)?;
     let stream = socket.connect(addr).await?;
     let transport = tokio_util::codec::Framed::new(stream, CborCodec::new());
     let client = Client::new(transport)?;

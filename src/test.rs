@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
-use futures::{stream::FuturesUnordered, SinkExt, StreamExt};
-use tokio::{io::AsyncWriteExt, join, net::{UnixSocket, UnixStream}, task::JoinHandle};
+use futures::{stream::FuturesUnordered, StreamExt};
+use tokio::{io::AsyncWriteExt, join, net::UnixStream, task::JoinHandle};
 use super::protocol::{PublishProtocol, RequestProtocol};
 use crate::{client::Client, err::{BusError, BusResult}, prelude::ServerBuilder, stopper::Stopper};
 
