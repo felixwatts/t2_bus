@@ -58,12 +58,12 @@ impl Core {
         let (stop_sender, stop_receiver) = tokio::sync::oneshot::channel();
         let join_handle = tokio::spawn(async move {
             #[cfg(debug_assertions)]
-            println!("B Bus server started");
+            println!("[B] Bus server started");
 
             let result = self.run(stop_receiver).await;
 
             #[cfg(debug_assertions)]
-            println!("B Bus server stopped: {result:?}");
+            println!("[B] Bus server stopped: {result:?}");
 
             result
         });
@@ -125,14 +125,14 @@ impl Core {
             ClientStub::new(client_id, transport, self.task_sender.clone())?;
 
         tokio::spawn(async move {
-            println!("Client #{} connected", client_id);
+            println!("[B] Client #{} connected", client_id);
 
             match client.serve().await {
                 Ok(_) | Err(BusError::ChannelClosed) => {}
-                Err(e) => println!("Client #{}: Error: {:?}", client_id, e)
+                Err(e) => println!("[B] Client #{}: Error: {:?}", client_id, e)
             }
 
-            println!("Client #{} disconnected", client_id);
+            println!("[B] Client #{} disconnected", client_id);
         });
 
         self.protocol_server_senders

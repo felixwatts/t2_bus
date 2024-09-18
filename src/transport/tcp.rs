@@ -49,7 +49,8 @@ impl TcpListener{
 
 impl Listener for TcpListener{
     async fn accept(&mut self) -> BusResult<impl Transport<ProtocolServer, ProtocolClient>> {
-        let (socket, _) = self.0.accept().await?;
+        let (socket, addr) = self.0.accept().await?;
+        println!("[B] Accepted connection from {addr}");
         let transport = tokio_util::codec::Framed::new(socket, CborCodec::new());
         Ok(transport)
     }

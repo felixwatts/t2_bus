@@ -97,12 +97,12 @@ where
 
         let handle = tokio::spawn(async move { 
             #[cfg(debug_assertions)]
-            println!("C Bus client started");
+            println!("[C] Bus client started");
 
             let result = core.main_loop().await ;
 
             #[cfg(debug_assertions)]
-            println!("C Bus client stopped: {result:?}");
+            println!("[C] Bus client stopped: {result:?}");
 
             result
         });
