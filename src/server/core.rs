@@ -7,10 +7,9 @@ use crate::stopper::BasicStopper;
 use crate::topic::*;
 use crate::err::*;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use tokio::time::Duration;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
-
-const REQUEST_TIMEOUT_S: u64 = 30;
 
 pub(crate) type ClientId = u32;
 
@@ -27,7 +26,7 @@ pub(crate) struct Core {
     directory: Directory,
     next_client_id: u32,
     next_msg_id: u32,
-    pending_responses: HashMap<u32, PendingResponse>,
+    pending_responses: HashMap<u32, PendingResponse>
 }
 
 impl Core {
@@ -37,11 +36,11 @@ impl Core {
         let mut core = Core {
             task_sender,
             task_receiver,
+            next_client_id: 1,
             protocol_server_senders: HashMap::new(),
             directory: Directory::new(),
-            next_client_id: 1,
             next_msg_id: 0,
-            pending_responses: HashMap::new(),
+            pending_responses: HashMap::new()
         };
 
         core.directory
@@ -143,6 +142,7 @@ impl Core {
     fn deregister_client(&mut self, id: u32) -> BusResult<()> {
         self.protocol_server_senders.remove(&id);
         self.directory.drop_client(id);
+        self.pending_responses.retain(|_, v| v.requester_id != id && v.responder_id != id);
         Ok(())
     }
 

@@ -1,14 +1,15 @@
 use crate::err::*;
+use crate::protocol::MAX_MESSAGE_SIZE_BYTES;
 use bytes::Buf;
 use bytes::BufMut;
 use serde::{de::DeserializeOwned, Serialize};
+use std::convert::TryInto;
 use std::io::Cursor;
 use std::marker::PhantomData;
 
 /// The internal codec used within the bus. Can be useful in conjunction with `Client::publish_bytes`, `Client::request_bytes`, `Client::request_bytes_into` and `Client::subscribe_bytes_into`.
 #[derive(Default)]
 pub struct CborCodec<TEncode, TDecode> {
-    msg_len: Option<usize>,
     e: PhantomData<TEncode>,
     d: PhantomData<TDecode>,
 }
@@ -20,8 +21,7 @@ where
     pub fn new() -> CborCodec<TEncode, TDecode> {
         CborCodec {
             e: PhantomData {},
-            d: PhantomData {},
-            msg_len: None,
+            d: PhantomData {}
         }
     }
 }
@@ -37,35 +37,31 @@ where
     fn decode(&mut self, src: &mut bytes::BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let buf_len = src.len();
 
-        if self.msg_len.is_none() {
-            if buf_len < 4 {
-                return Ok(None);
-            } else {
-                let msg_len = src.get_u32() as usize;
-                src.reserve(msg_len);
-                self.msg_len = Some(msg_len);
+        if buf_len < 4 {
+            Ok(None)
+        } else {
+            let header_arr: [u8; 4] = src[0..4].try_into().unwrap();
+            let payload_len = u32::from_be_bytes(header_arr) as usize;
+
+            if payload_len > MAX_MESSAGE_SIZE_BYTES {
+                return Err(BusError::IOError("Max message length exceeded".into()));
             }
-        }
 
-        let buf_len = src.len();
+            let msg_len = payload_len + 4;
 
-        match self.msg_len {
-            Some(msg_len) => {
-                if buf_len < msg_len {
-                    Ok(None)
-                } else {
-                    let msg_res = deser(&src[0..msg_len]);
-                    match msg_res {
-                        Ok(msg) => {
-                            src.advance(msg_len);
-                            self.msg_len = None;
-                            Ok(Some(msg))
-                        }
-                        Err(e) => Err(e),
+            if buf_len < msg_len {
+                src.reserve(msg_len - buf_len);
+                Ok(None)
+            } else {
+                let msg_res = deser(&src[4..msg_len]);
+                match msg_res {
+                    Ok(msg) => {
+                        src.advance(msg_len);
+                        Ok(Some(msg))
                     }
+                    Err(e) => Err(e)
                 }
             }
-            None => Ok(None),
         }
     }
 }

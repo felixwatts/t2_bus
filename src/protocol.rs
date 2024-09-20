@@ -5,6 +5,12 @@ use flate2::Compression;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{fmt, io::prelude::*};
 
+pub(crate) const REQUEST_TIMEOUT_S: u64 = 30;
+pub(crate) const KEEP_ALIVE_INTERVAL_S: u64 = 30;
+pub(crate) const KEEP_ALIVE_TIMEOUT_S: u64 = 90;
+
+pub(crate) const MAX_MESSAGE_SIZE_BYTES: usize = 1 << 20; // 1MB
+
 pub trait PublishProtocol: Serialize + DeserializeOwned + Send + 'static + std::fmt::Debug {
     fn prefix() -> &'static str;
 }

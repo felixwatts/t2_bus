@@ -12,7 +12,7 @@ pub enum BusError{
     #[error("Request failed: {0}")]
     RequestFailed(String),
 
-    #[error("Respond failed: Invalid request ID")]
+    #[error("Respond failed: Invalid request ID or requester disconnected")]
     InvalidRequestId,
 
     #[error("Claim topic failed: Already claimed")]       
@@ -44,7 +44,10 @@ pub enum BusError{
     TlsConfigError(String),
 
     #[error("DNS lookup failed")]
-    DnsLookupFailed
+    DnsLookupFailed,
+
+    #[error("Client #{0} timed out, no messages or keep alives for KEEP_ALIVE_TIMEOUT_S")]
+    ClientTimeout(u32)
 }
 
 impl<T> From<ciborium::ser::Error<T>> for BusError {

@@ -111,7 +111,7 @@ where
     }
 
     async fn main_loop(&mut self) -> BusResult<()> {
-        let mut keep_alive_interval = tokio::time::interval(Duration::from_secs(30));
+        let mut keep_alive_interval = tokio::time::interval(Duration::from_secs(KEEP_ALIVE_INTERVAL_S));
         loop {
             tokio::select! {
                 // message from server

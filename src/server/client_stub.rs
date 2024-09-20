@@ -1,4 +1,6 @@
-use super::Task;
+use std::time::Duration;
+
+use super::{Task, KEEP_ALIVE_TIMEOUT_S};
 use crate::{
     protocol::{Msg, ProtocolClient, ProtocolServer},
     transport::Transport,
@@ -6,7 +8,7 @@ use crate::{
 };
 use futures::SinkExt;
 use futures::StreamExt;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::{sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender}, time::Instant};
 
 pub(crate) struct ClientStub {
     id: u32,
@@ -40,11 +42,13 @@ impl ClientStub {
         result
     }
 
-    async fn _serve(&mut self) -> BusResult<()> {
+    async fn _serve(&mut self) -> BusResult<()> {     
+        let mut keep_alive_interval = tokio::time::interval_at(Instant::now() + Duration::from_secs(KEEP_ALIVE_TIMEOUT_S), Duration::from_secs(KEEP_ALIVE_TIMEOUT_S));   
         loop {
             tokio::select! {
                 // message from  client
                 msg = self.transport.next() => {
+                    keep_alive_interval.reset();
                     let msg = msg.ok_or(BusError::ChannelClosed)??;
                     let task = Task::Message(self.id, msg);
                     self.task_sender.send(task)?
@@ -58,6 +62,10 @@ impl ClientStub {
                         },
                         None => return Ok(())
                     }
+                },
+
+                _ = keep_alive_interval.tick() => {
+                    return Err(BusError::ClientTimeout(self.id))
                 }
             }
         }
