@@ -7,7 +7,6 @@ use crate::stopper::BasicStopper;
 use crate::topic::*;
 use crate::err::*;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use tokio::time::Duration;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
