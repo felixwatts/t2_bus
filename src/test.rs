@@ -401,15 +401,15 @@ async fn malformed_message_doesnt_crash_server(){
     let addr = unique_addr();
     let (stopper, _) = ServerBuilder::new().serve_unix_socket(addr.clone()).build().await.unwrap();
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();
-    let _ = socket.write(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    let _ = socket.write(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]).await;
 
     let c1 = crate::transport::unix::connect(&addr).await.unwrap();
 
-    let _ = socket.write(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    let _ = socket.write(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]).await;
 
     let c2 = crate::transport::unix::connect(&addr).await.unwrap();
 
-    let _ = socket.write(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    let _ = socket.write(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]).await;
 
     let mut sub = c1.subscribe::<TestPub>("a").await.unwrap();
 
@@ -417,11 +417,11 @@ async fn malformed_message_doesnt_crash_server(){
 
     c2.publish("a", &TestPub("hello".into())).await.unwrap();
 
-    let _ = socket.write(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    let _ = socket.write(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]).await;
 
     assert_eq!(sub.recv().await.unwrap(), ("test/a".into(), TestPub("hello".into())));
 
-    let _ = socket.write(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    let _ = socket.write(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]).await;
 
     let result = stopper.stop().await;
 
