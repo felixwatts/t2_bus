@@ -413,7 +413,7 @@ async fn malformed_message_doesnt_crash_server(){
 
     let mut sub = c1.subscribe::<TestPub>("a").await.unwrap();
 
-    let _ = socket.write(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    let _ = socket.write(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]).await;
 
     c2.publish("a", &TestPub("hello".into())).await.unwrap();
 
