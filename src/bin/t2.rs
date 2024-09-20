@@ -1,8 +1,7 @@
 use std::{fmt::Display, net::SocketAddr, path::PathBuf};
-use clap::{command, Parser, Subcommand};
+use clap::{command, ArgGroup, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use t2_bus::prelude::*;
-use tokio::net::ToSocketAddrs;
 
 
 pub const DEFAULT_BUS_ADDR: &str = ".t2";
@@ -13,6 +12,19 @@ pub const DEFAULT_BUS_PORT: u16 = 4242;
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Parser, Debug)]
+#[command(group(
+    ArgGroup::new("require_one")
+        .args(&["tcp", "unix"])
+        .required(true)
+))]
+pub struct BusAddr {
+    #[arg(long)]
+    tcp: Vec<String>,
+    #[arg(long)]
+    unix: Vec<PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -26,20 +38,16 @@ enum Commands {
     Sub{
         #[arg(long)]
         topic: String,
-        #[arg(long)]
-        tcp: Option<String>,
-        #[arg(long)]
-        unix: Option<PathBuf>,
+        #[clap(flatten)]
+        addr: BusAddr,
     },
     Pub{
         #[arg(long)]
         topic: String,
         #[arg(long)]
         value: String,
-        #[arg(long)]
-        tcp: Option<String>,
-        #[arg(long)]
-        unix: Option<PathBuf>,
+        #[clap(flatten)]
+        addr: BusAddr,
     }
 }
 
@@ -47,18 +55,8 @@ impl Commands{
     fn validate(&self) -> Result<(), Error> {
         match self{
             Commands::Serve { .. } => Ok(()),
-            Commands::Sub { tcp, unix, .. } => {
-
-                if tcp.is_none() == unix.is_none() {
-                    return Err(Error("You must specify either a tcp or a unix connection.".into()))
-                }
-                Ok(())
-            },
-            Commands::Pub { topic, value, tcp, unix } => {
-                if tcp.is_none() == unix.is_none() {
-                    return Err(Error("You must specify either a tcp or a unix connection.".into()))
-                }
-
+            Commands::Sub { ..} => Ok(()),
+            Commands::Pub { topic, value, .. } => {
                 if !(topic.starts_with("f32/") || topic.starts_with("string/")) {
                     return Err(Error("Unknown protocol".into()))
                 }
@@ -113,8 +111,8 @@ async fn run() -> Result<(), Error> {
 
             stopper.join().await?;
         },
-        Commands::Sub { tcp, unix, topic } => {
-            let client = build_client(&tcp, &unix).await?;
+        Commands::Sub { addr, topic } => {
+            let client = build_client(&addr).await?;
 
             let mut sub = client.subscribe_bytes(&topic).await?;
             while let Some(msg) = sub.recv().await {
@@ -134,8 +132,8 @@ async fn run() -> Result<(), Error> {
                 println!("{}: {val_str}", msg.topic)
             }
         },
-        Commands::Pub { tcp, unix, topic, value } => {
-            let client = build_client(&tcp, &unix).await?;
+        Commands::Pub { addr, topic, value } => {
+            let client = build_client(&addr).await?;
             let payload = if topic.starts_with("f32/") {
                 t2_bus::transport::cbor_codec::ser(&F32Protocol(value.parse().unwrap()))?
 
@@ -150,13 +148,13 @@ async fn run() -> Result<(), Error> {
     Ok(())
 }
 
-async fn build_client(tcp: &Option<impl ToSocketAddrs>, unix: &Option<PathBuf>) -> Result<Client, Error>{
-    match tcp {
+async fn build_client(addr: &BusAddr) -> Result<Client, Error>{
+    match addr.tcp.first() {
         Some(addr) => {
             Ok(t2_bus::transport::tcp::connect(addr).await?)
         },
         None => {
-            match unix {
+            match addr.unix.first() {
                 Some(addr) => {
                     Ok(t2_bus::transport::unix::connect(addr).await?)
                 },
