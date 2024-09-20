@@ -1,8 +1,8 @@
-use std::{io, time::{Duration, Instant}};
+use std::time::{Duration, Instant};
 use futures::{stream::FuturesUnordered, StreamExt};
 use tokio::{io::AsyncWriteExt, join, net::UnixStream, task::JoinHandle};
 use super::protocol::{PublishProtocol, RequestProtocol};
-use crate::{client::Client, err::{BusError, BusResult}, prelude::ServerBuilder, protocol::KEEP_ALIVE_TIMEOUT_S, stopper::{self, Stopper}};
+use crate::{client::Client, err::{BusError, BusResult}, prelude::ServerBuilder, protocol::KEEP_ALIVE_TIMEOUT_S, stopper::{Stopper}};
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 struct TestPub(pub String);
@@ -401,32 +401,32 @@ async fn malformed_message_doesnt_crash_server(){
     let addr = unique_addr();
     let (stopper, _) = ServerBuilder::new().serve_unix_socket(addr.clone()).build().await.unwrap();
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();
-    socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
+    let _ = socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
 
     let c1 = crate::transport::unix::connect(&addr).await.unwrap();
 
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();
-    socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
+    let _ = socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
 
     let c2 = crate::transport::unix::connect(&addr).await.unwrap();
 
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();
-    socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
+    let _ = socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
 
     let mut sub = c1.subscribe::<TestPub>("a").await.unwrap();
 
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();
-    socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
+    let _ = socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
 
     c2.publish("a", &TestPub("hello".into())).await.unwrap();
 
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();
-    socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
+    let _ = socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
 
     assert_eq!(sub.recv().await.unwrap(), ("test/a".into(), TestPub("hello".into())));
 
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();
-    socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
+    let _ = socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
 
     stopper.stop().await.unwrap();
 }
