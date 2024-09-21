@@ -1,8 +1,8 @@
+use std::collections::HashSet;
 use std::{fmt::Display, net::SocketAddr, path::PathBuf};
 use clap::{command, ArgGroup, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use t2_bus::prelude::*;
-
 
 pub const DEFAULT_BUS_ADDR: &str = ".t2";
 pub const DEFAULT_BUS_PORT: u16 = 4242;
@@ -48,7 +48,13 @@ enum Commands {
         value: String,
         #[clap(flatten)]
         addr: BusAddr,
-    }
+    },
+    Lst{
+        #[arg(long)]
+        topic: String,
+        #[clap(flatten)]
+        addr: BusAddr,
+    },
 }
 
 impl Commands{
@@ -56,6 +62,7 @@ impl Commands{
         match self{
             Commands::Serve { .. } => Ok(()),
             Commands::Sub { ..} => Ok(()),
+            Commands::Lst { ..} => Ok(()),
             Commands::Pub { topic, value, .. } => {
                 if !(topic.starts_with("f32/") || topic.starts_with("string/")) {
                     return Err(Error("Unknown protocol".into()))
@@ -130,6 +137,18 @@ async fn run() -> Result<(), Error> {
                 };
 
                 println!("{}: {val_str}", msg.topic)
+            }
+        },
+        Commands::Lst { addr, topic } => {
+            let client = build_client(&addr).await?;
+            let mut encountered_topics = HashSet::new();
+
+            let mut sub = client.subscribe_bytes(&topic).await?;
+            while let Some(PubMsg{ topic, .. }) = sub.recv().await {
+                if !encountered_topics.contains(&topic) {
+                    println!("{topic}");
+                    encountered_topics.insert(topic);
+                }
             }
         },
         Commands::Pub { addr, topic, value } => {
