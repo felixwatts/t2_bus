@@ -34,11 +34,6 @@ pub fn connect(
     Client::new(transport)
 }
 
-pub struct MemoryTransport<TSend, TRecv> {
-    sender: UnboundedSender<BusResult<Msg<TSend>>>,
-    receiver: UnboundedReceiver<BusResult<Msg<TRecv>>>,
-}
-
 pub(crate) struct MemoryListener {    
     accept_receiver: UnboundedReceiver<MemoryTransport<ProtocolServer, ProtocolClient>>,
 }
@@ -53,6 +48,18 @@ impl Listener for MemoryListener{
     }
 }
 
+impl MemoryListener {
+    pub(crate) fn new() -> (Self, MemoryConnector){
+        let (accept_sender, accept_receiver) = tokio::sync::mpsc::unbounded_channel();
+        let listener = Self { accept_receiver };
+        let connector = MemoryConnector{ accept_sender };
+        (listener, connector)
+    }
+    
+
+}
+
+#[derive(Clone)]
 pub struct MemoryConnector{
     accept_sender: UnboundedSender<MemoryTransport<ProtocolServer, ProtocolClient>>,
 }
@@ -78,15 +85,9 @@ impl MemoryConnector{
     }
 }
 
-impl MemoryListener {
-    pub(crate) fn new() -> (Self, MemoryConnector){
-        let (accept_sender, accept_receiver) = tokio::sync::mpsc::unbounded_channel();
-        let listener = Self { accept_receiver };
-        let connector = MemoryConnector{ accept_sender };
-        (listener, connector)
-    }
-    
-
+pub struct MemoryTransport<TSend, TRecv> {
+    sender: UnboundedSender<BusResult<Msg<TSend>>>,
+    receiver: UnboundedReceiver<BusResult<Msg<TRecv>>>,
 }
 
 impl<TSend, TRecv> Stream for MemoryTransport<TSend, TRecv> {
