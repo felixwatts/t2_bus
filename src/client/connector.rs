@@ -2,6 +2,7 @@ use std::{os::unix::net::SocketAddr, path::{Path, PathBuf}};
 
 use crate::{client::Client, err::BusResult, transport::memory::MemoryConnector};
 
+#[derive(Clone)]
 pub enum Connector{
     Memory(MemoryConnector),
     Unix(PathBuf),
