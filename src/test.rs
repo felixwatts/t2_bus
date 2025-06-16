@@ -444,7 +444,7 @@ async fn test_multi_transport(){
         .await
         .unwrap();
 
-    let memory_client = crate::transport::memory::connect(&memory_connector.unwrap()).unwrap();
+    let memory_client = memory_connector.unwrap().connect().await.unwrap();
     let unix_client = crate::transport::unix::connect(&unix_addr).await.unwrap();
     let tcp_client = crate::transport::tcp::connect(tcp_addr).await.unwrap();
 
