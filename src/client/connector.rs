@@ -1,4 +1,4 @@
-use std::{os::unix::net::SocketAddr, path::{Path, PathBuf}};
+use std::path::PathBuf;
 
 use crate::{client::Client, err::BusResult, transport::memory::MemoryConnector};
 
