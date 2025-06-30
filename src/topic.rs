@@ -35,6 +35,10 @@ fn test_rgx_topic() {
     assert!(RGX_TOPIC.is_match("a/**"));
     assert!(RGX_TOPIC.is_match("**/*"));
     assert!(RGX_TOPIC.is_match("*/**"));
+
+    assert!(RGX_TOPIC.is_match("1/2"));
+    assert!(RGX_TOPIC.is_match("a_1/2_a_"));
+    assert!(RGX_TOPIC.is_match("1_/_2"));
 }
 
 pub(crate) fn parse_topic(topic_str: &str) -> BusResult<Vec<&str>> {
