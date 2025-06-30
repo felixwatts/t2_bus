@@ -5,3 +5,4 @@ pub use crate::transport::cbor_codec::CborCodec;
 pub use crate::client::subscription::{RequestSubscription, Subscription, SubscriptionInto};
 pub use crate::stopper::Stopper;
 pub use crate::server::builder::ServerBuilder;
+pub use crate::client::connector::Connector;

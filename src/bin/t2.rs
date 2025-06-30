@@ -1,11 +1,47 @@
 use std::collections::HashSet;
 use std::{fmt::Display, net::SocketAddr, path::PathBuf};
-use clap::{command, ArgGroup, Parser, Subcommand};
+use clap::{command, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use t2_bus::prelude::*;
+use regex::Regex;
+use std::net::AddrParseError;
 
 pub const DEFAULT_BUS_ADDR: &str = ".t2";
 pub const DEFAULT_BUS_PORT: u16 = 4242;
+const BUS_ADDR_NAME_RGX: &str = r"^[a-z_]+$";
+const BUS_ADDR_RGX: &str = r"^(tcp|unix|name):(.+)$";
+const BUS_ADDR_CONFIG_RGX: &str = r"(.+?) (tcp|unix):(.*?)\n";
+
+#[derive(Debug)]
+enum ResolvedBusAddr{
+    Tcp(String),
+    Unix(PathBuf)
+}
+
+impl Display for ResolvedBusAddr{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self{
+            ResolvedBusAddr::Tcp(addr) => write!(f, "tcp:{}", addr),
+            ResolvedBusAddr::Unix(addr) => write!(f, "unix:{}", addr.display()),
+        }
+    }
+}
+
+fn validate_bus_addr_name(s: &str) -> Result<String, String> {
+    let valid = Regex::new(BUS_ADDR_NAME_RGX).unwrap().is_match(s);
+    match valid {
+        true => Ok(s.to_string()),
+        false => Err(format!("Invalid bus address name, must contain only lowercase and underscore.")),
+    }
+}
+
+fn validate_bus_addr(s: &str) -> Result<String, String> {
+    let valid = Regex::new(BUS_ADDR_RGX).unwrap().is_match(s);
+    match valid {
+        true => Ok(s.to_string()),
+        false => Err(format!("Invalid bus address. Must be in the format of (tcp|unix|name):<address or name>")),
+    }
+}
 
 #[derive(Parser)]
 #[command(version = "1.0", author = "Felix Watts", about = "Utilities related to the t2 bus.")]
@@ -14,47 +50,40 @@ struct Cli {
     command: Commands,
 }
 
-#[derive(Parser, Debug)]
-#[command(group(
-    ArgGroup::new("require_one")
-        .args(&["tcp", "unix"])
-        .required(true)
-))]
-pub struct BusAddr {
-    #[arg(long)]
-    tcp: Vec<String>,
-    #[arg(long)]
-    unix: Vec<PathBuf>,
-}
-
 #[derive(Subcommand)]
 enum Commands {
     Serve {
-        #[arg(long)]
-        tcp: Vec<SocketAddr>,
-        #[arg(long)]
-        unix: Vec<PathBuf>,
+        #[arg(value_parser = validate_bus_addr)]
+        addr: Vec<String>
     },
     Sub{
-        #[arg(long)]
         topic: String,
-        #[clap(flatten)]
-        addr: BusAddr,
+        #[arg(value_parser = validate_bus_addr)]
+        addr: Option<String>
     },
     Pub{
-        #[arg(long)]
         topic: String,
-        #[arg(long)]
         value: String,
-        #[clap(flatten)]
-        addr: BusAddr,
+        #[arg(value_parser = validate_bus_addr)]
+        addr: Option<String>
     },
     Lst{
-        #[arg(long)]
         topic: String,
-        #[clap(flatten)]
-        addr: BusAddr,
+        #[arg(value_parser = validate_bus_addr)]
+        addr: Option<String>
     },
+    Register{
+        #[arg(value_parser = validate_bus_addr_name)]
+        name: String,
+        #[arg(value_parser = validate_bus_addr)]
+        addr: String,
+        #[arg(long)]
+        default: bool
+    },
+    Unregister{
+        #[arg(value_parser = validate_bus_addr_name)]
+        name: String
+    }
 }
 
 impl Commands{
@@ -74,14 +103,28 @@ impl Commands{
 
                 Ok(())
             },
+            Commands::Register { .. } => Ok(()),
+            Commands::Unregister { .. } => Ok(()),
         }
     }
 }
 
 struct Error(String);
 
+impl From<std::io::Error> for Error{
+    fn from(value: std::io::Error) -> Self {
+        Self(value.to_string())
+    }
+}
+
 impl From<BusError> for Error{
     fn from(value: BusError) -> Self {
+        Self(value.to_string())
+    }
+}
+
+impl From<AddrParseError> for Error{
+    fn from(value: AddrParseError) -> Self {
         Self(value.to_string())
     }
 }
@@ -103,15 +146,19 @@ async fn run() -> Result<(), Error> {
     let cli = Cli::parse();
     cli.command.validate()?;
     match cli.command {
-        Commands::Serve { tcp, unix } => {
+        Commands::Serve { addr } => {
             let mut builder = t2_bus::prelude::ServerBuilder::new();
 
-            for addr in tcp.into_iter() {
-                builder = builder.serve_tcp(addr);
-            }
-
-            for addr in unix.into_iter() {
-                builder = builder.serve_unix_socket(addr);
+            for addr in addr.into_iter() {
+                let resolved_addr = resolve_addr(&Some(addr))?;
+                match resolved_addr {
+                    ResolvedBusAddr::Tcp(addr) => {
+                        builder = builder.serve_tcp(addr.parse::<SocketAddr>()?);
+                    },
+                    ResolvedBusAddr::Unix(addr) => {
+                        builder = builder.serve_unix_socket(addr);
+                    },
+                }
             }
 
             let (stopper, _) = builder.build().await?;
@@ -162,25 +209,120 @@ async fn run() -> Result<(), Error> {
 
             client.publish_bytes(&topic, payload).await?;
         },
+        Commands::Register { name, addr, default } => {
+            let home = match std::env::var("HOME") {
+                Ok(home) => home,
+                Err(_) => return Err(Error("HOME environment variable not set".into()))
+            };
+            let resolved_addr = resolve_addr(&Some(addr))?;
+            let mut config = parse_config()?;
+            config.retain(|(n, _)| n != &name);
+
+            if default {
+                config.insert(0, (name, resolved_addr));
+            } else {
+                config.push((name, resolved_addr));
+            }
+
+            let config_str = config
+                .iter()
+                .map(|(name, addr)| format!("{} {}\n", name, addr.to_string()))
+                .collect::<Vec<_>>()
+                .join("");
+            let path = PathBuf::from(home).join(".t2");
+            std::fs::write(path, config_str)?;
+        },
+        Commands::Unregister { name } => {
+            let home = match std::env::var("HOME") {
+                Ok(home) => home,
+                Err(_) => return Err(Error("HOME environment variable not set".into()))
+            };
+            let mut config = parse_config()?;
+            config.retain(|(n, _)| n != &name);
+            let config_str = config
+                .iter()
+                .map(|(name, addr)| format!("{} {}\n", name, addr.to_string()))
+                .collect::<Vec<_>>()
+                .join("");
+            let path = PathBuf::from(home).join(".t2");
+            std::fs::write(path, config_str)?;
+        }
     }
 
     Ok(())
 }
 
-async fn build_client(addr: &BusAddr) -> Result<Client, Error>{
-    match addr.tcp.first() {
-        Some(addr) => {
-            Ok(t2_bus::transport::tcp::connect(addr).await?)
+async fn build_client(addr: &Option<String>) -> Result<Client, Error>{
+    let resolved_addr = resolve_addr(addr)?;
+
+    match resolved_addr {
+        ResolvedBusAddr::Tcp(addr) => {
+            Ok(t2_bus::transport::tcp::connect(addr.parse::<SocketAddr>()?).await?)
         },
-        None => {
-            match addr.unix.first() {
-                Some(addr) => {
-                    Ok(t2_bus::transport::unix::connect(addr).await?)
-                },
-                None => { Err(Error("You must specify either a unix or a tcp connection".into()))}
-            }
+        ResolvedBusAddr::Unix(addr) => {
+            Ok(t2_bus::transport::unix::connect(&addr).await?)
         }
     }
+}
+
+fn resolve_addr(addr: &Option<String>) -> Result<ResolvedBusAddr, Error>{
+    match addr{
+        Some(addr) => {
+            let matches = regex::Regex::new(BUS_ADDR_RGX).unwrap().captures(addr).unwrap();
+            let typ = matches.get(1).unwrap().as_str();
+            let addr = matches.get(2).unwrap().as_str();
+            match typ{
+                "tcp" => Ok(ResolvedBusAddr::Tcp(addr.to_string())),
+                "unix" => Ok(ResolvedBusAddr::Unix(PathBuf::from(addr))),
+                "name" => {
+                    let config = parse_config()?;
+                    let addr = config.into_iter().find(|(name, _)| name == addr).ok_or(Error("Address not found in config".into()))?;
+                    Ok(addr.1)
+                },
+                _ => Err(Error("Invalid address type".into()))
+            }
+        },
+        None => {
+            let mut config = parse_config()?;
+            if config.is_empty() {
+                return Err(Error("No default address found in config. Use the register command to add one or specify an address".into()));
+            }
+            let addr = config.remove(0).1;
+            Ok(addr)
+        }
+    }
+}
+
+fn parse_config() -> Result<Vec<(String, ResolvedBusAddr)>, Error>{
+    let home = match std::env::var("HOME") {
+        Ok(home) => home,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let path = PathBuf::from(home).join(".t2");
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    
+    let config = std::fs::read_to_string(path).unwrap();
+    
+    let addrs= regex::Regex::new(BUS_ADDR_CONFIG_RGX)
+        .unwrap()
+        .captures_iter(&config)
+        .map(|m| {
+            let name = m.get(1).unwrap().as_str();
+            let addr = m.get(3).unwrap().as_str();
+            let addr_type = m.get(2).unwrap().as_str();
+            let addr = match addr_type{
+                "tcp" => ResolvedBusAddr::Tcp(addr.to_string()),
+                "unix" => ResolvedBusAddr::Unix(PathBuf::from(addr)),
+                _ => panic!()
+            };
+            (name.to_string(), addr)
+        })
+        .collect::<Vec<_>>();
+
+    Ok(addrs)
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

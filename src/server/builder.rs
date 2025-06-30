@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, path::PathBuf};
 use futures::future::join_all;
 use tokio::sync::mpsc::UnboundedSender;
-use crate::{err::BusResult, stopper::{BasicStopper, MultiStopper}, transport::{memory::{MemoryConnector, MemoryListener}, tcp::TcpListener, unix::UnixListener}};
+use crate::{client::connector::Connector, err::BusResult, stopper::{BasicStopper, MultiStopper}, transport::{memory::{MemoryConnector, MemoryListener}, tcp::TcpListener, unix::UnixListener}};
 use crate::server::Task;
 use super::core::Core;
 
@@ -39,7 +39,7 @@ impl ServerBuilder{
         self
     }
 
-    pub async fn build(mut self) -> BusResult<(MultiStopper, Option<MemoryConnector>)> {
+    pub async fn build(mut self) -> BusResult<(MultiStopper, Option<Connector>)> {
         let mut core = Core::new();
         let listen_results = join_all(self
             .listeners
@@ -58,7 +58,7 @@ impl ServerBuilder{
             });
         stoppers.push(core_stopper);
         let stopper = MultiStopper::new(stoppers);
-        Ok((stopper, memory_connector))
+        Ok((stopper, memory_connector.map(Connector::Memory)))
     }
 }
 

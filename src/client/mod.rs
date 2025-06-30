@@ -1,5 +1,6 @@
 mod core;
 pub mod subscription;
+pub mod connector;
 
 use self::core::*;
 use self::subscription::*;
