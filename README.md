@@ -137,10 +137,10 @@ topic is being served as the two systems do not interact.
 
 Topic wildcards are not supported for either serving or requesting.
 
-```
-# use t2_bus::prelude::*;
-# use serde::{Serialize, Deserialize};
-#
+```rust
+use t2_bus::prelude::*;
+use serde::{Serialize, Deserialize};
+
 // Define protocol message types for request and response
 #[derive(Clone, Deserialize, Serialize, Debug)]
 struct HelloRequest(String);
@@ -156,22 +156,22 @@ impl RequestProtocol for HelloRequest{
         "hello"
     }
 }
-#
-# #[tokio::main]
-# async fn main() -> BusResult<()> {
-#
-# let (stopper, connector) = listen_and_serve_memory()?;
-#
-# let client_1 = Client::new_memory(&connector)?;
-# let client_2 = Client::new_memory(&connector)?;
+
+#[tokio::main]
+async fn main() -> BusResult<()> {
+
+let (stopper, connector) = listen_and_serve_memory()?;
+
+let client_1 = Client::new_memory(&connector)?;
+let client_2 = Client::new_memory(&connector)?;
 
 // A client begins to serve the `HelloProtocol` at topic ''
 let mut request_subscription = client_1.serve::<HelloRequest>("").await?;
-//!
-# tokio::spawn(async move {
-// Another client sends a HelloProtocol request on topic '' and later receives a response
-let response = client_2.request("", &HelloRequest("Alice".to_string())).await.unwrap();
-# });
+
+tokio::spawn(async move {
+    // Another client sends a HelloProtocol request on topic '' and later receives a response
+    let response = client_2.request("", &HelloRequest("Alice".to_string())).await.unwrap();
+});
 
 // The serving client receives the request...
 let (_topic, request_id, request) = request_subscription.recv().await.unwrap();
@@ -179,7 +179,6 @@ let (_topic, request_id, request) = request_subscription.recv().await.unwrap();
 // ...and sends the response
 client_1.respond::<HelloRequest>(request_id, &HelloResponse(format!("Hello {}", &request.0))).await?;
 
-# Ok(())
-
-# }
+Ok(())
+}
 ```
