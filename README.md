@@ -12,20 +12,20 @@ The bus supports three transport types:
 
 The bus can operate as an inter-process message bus. In this case the server and each of the clients run in separate processes and messages are passed via a Unix socket.
 
-The binary `t2_bus` can be used to run an inter-process bus at a specified unix socket address:
+The binary `t2` can be used to run an inter-process bus at a specified unix socket address:
 
-```text
+```bash
 > cargo install --path .
-> t2_bus my_bus
+> t2 serve --unix my_bus
 ```
 
 A client can then be created in rust code:
 
-```
-# use t2_bus::prelude::*;
-# async fn connect_client() {
-// connect a new client to the bus listening at "my_bus"
-let client = Client::new_unix(&"my_bus".into()).await.unwrap();
+```rust
+use t2_bus::prelude::*;
+async fn connect_client() {
+    // connect a new client to the bus listening at "my_bus"
+    let client = Client::new_unix(&"my_bus".into()).await.unwrap();
 # }
 ```
 
@@ -33,38 +33,37 @@ let client = Client::new_unix(&"my_bus".into()).await.unwrap();
 
 Alternatively the bus can operate in the same process as the clients. In this case messages will be passed by a memory queue, which is significantly faster.
 
-```
-# use t2_bus::prelude::*;
-# fn test() {
-// start an in process bus service
-let (stopper, connector) = listen_and_serve_memory().unwrap();
-// connect a new client to the bus
-let client = Client::new_memory(&connector).unwrap();
-# 
-# }
+```rust
+use t2_bus::prelude::*;
+fn test() {
+    // start an in process bus service
+    let (stopper, connector) = listen_and_serve_memory().unwrap();
+    // connect a new client to the bus
+    let client = Client::new_memory(&connector).unwrap();
+}
 ```
 ## TCP Mode
 
 If the bus and the clients need to be on different hosts then TCP mode can used.
 
-```
-# use t2_bus::prelude::*;
-# async fn test() {
-// start a TCP based bus
-let stopper = listen_and_serve_tcp("localhost:4242").await.unwrap();
-// connect a new client to the bus
-let client = Client::new_tcp("localhost:4242").await.unwrap();
-# }
+```rust
+use t2_bus::prelude::*;
+async fn test() {
+    // start a TCP based bus
+    let stopper = listen_and_serve_tcp("localhost:4242").await.unwrap();
+    // connect a new client to the bus
+    let client = Client::new_tcp("localhost:4242").await.unwrap();
+}
 ```
 
 ## Publish/Subscribe
 
 Clients may subscribe to topics in order to receive all messages published on matching topics.
 
-```
-# use serde::{Deserialize, Serialize};
-# use t2_bus::prelude::*;
-#
+```rust
+use serde::{Deserialize, Serialize};
+use t2_bus::prelude::*;
+
 // Define a protocol message type
 #[derive(Clone, Deserialize, Serialize, Debug)]
 struct HelloProtocol(String);
@@ -79,27 +78,25 @@ impl PublishProtocol for HelloProtocol{
 
 // ..
 
-# async fn test() -> BusResult<()> {
-    # let (stopper, connector) = listen_and_serve_memory()?;
-    # let client_1 = Client::new_memory(&connector)?;
-    # let client_2 = Client::new_memory(&connector)?;
-    # 
-// Subscribe for all `HelloProtocol` type messages published on topics matching "alice"
-let mut subscription = client_1.subscribe::<HelloProtocol>("alice").await?;
+async fn test() -> BusResult<()> {
+    let (stopper, connector) = listen_and_serve_memory()?;
+    let client_1 = Client::new_memory(&connector)?;
+    let client_2 = Client::new_memory(&connector)?;
 
-// Publish a `HelloProtocol` type message to all subscribers for topics matching "alice"
-client_2.publish("alice", &HelloProtocol("Hello Alice".to_string())).await?;
+    // Subscribe for all `HelloProtocol` type messages published on topics matching "alice"
+    let mut subscription = client_1.subscribe::<HelloProtocol>("alice").await?;
 
-// Wait to receive a message on this subscription
-let (topic, message) = subscription.recv().await.unwrap();
+    // Publish a `HelloProtocol` type message to all subscribers for topics matching "alice"
+    client_2.publish("alice", &HelloProtocol("Hello Alice".to_string())).await?;
 
-assert_eq!(message.0, "Hello Alice".to_string());
+    // Wait to receive a message on this subscription
+    let (topic, message) = subscription.recv().await.unwrap();
 
-// When the subscription object is dropped the subscription ends
-    #
-    # Ok(())
-# }
+    assert_eq!(message.0, "Hello Alice".to_string());
 
+    // When the subscription object is dropped the subscription ends
+    Ok(())
+}
 
 ```
 
