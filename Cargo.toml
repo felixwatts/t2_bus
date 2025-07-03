@@ -13,35 +13,29 @@ categories = ["asynchronous", "concurrency"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serde_json = "1.0.64"
+serde_json = "1.0.140"
 byteorder = "1.4.2"
-log="0.4.14"
-regex = "1.4.3"
+regex = "1.11.1"
 lazy_static = "1.4.0"
-futures-util="0.3.5"
-tokio = { version = "1.40.0", features = ["full", "rt", "net"] } # TODO reduce features
-serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.46.0", features = ["full", "rt", "net"] } # TODO reduce features
+serde = { version = "1.0.219", features = ["derive"] }
 ciborium = "0.2.2"
 serde_derive = "1.0.123"
-tokio-util = { version = "0.6.3", features = ["codec"] }
-bytes = "1.0.1"
-futures-sink = "0.3.13"
-futures-core="0.3.13"
-futures="0.3.13"
-ansi_term = "0.12.1"
-flate2 = "1.0.20"
-thiserror = "1.0.24"
-tokio-rustls = { version = "0.26.0", optional = false }
-rustls-pemfile = "2.1.2"
-clap = { version = "4.5.9", features = ["derive"] }
-# web_pki = "0.22.40"
+tokio-util = { version = "0.7.15", features = ["codec"] }
+bytes = "1.10.1"
+futures="0.3.31"
+flate2 = "1.1.2"
+thiserror = "2.0.12"
+tokio-rustls = { version = "0.26.2", optional = true }
+rustls-pemfile = { version = "2.2.0", optional = true }
+clap = { version = "4.5.40", features = ["derive"] }
 hex = "0.4.3"
 
 [dev-dependencies]
-uuid = { version = "1.10.0", features = ["v4"] }
-tempfile = "3.2.0"
+uuid = { version = "1.17.0", features = ["v4"] }
 
-# [features]
-# tls = [ 
-#     "tokio-rustls"
-# ]
+[features]
+tls = [ 
+    "tokio-rustls",
+    "rustls-pemfile"
+]

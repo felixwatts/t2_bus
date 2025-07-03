@@ -1,3 +1,5 @@
+#![cfg(feature = "tls")]
+
 use std::convert::TryFrom;
 
 use std::fs::File;
