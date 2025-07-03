@@ -35,7 +35,7 @@ Alternatively, if you don't need an in-process bus, you may use the provided com
 
 ```bash
 cargo install --path .
-t2 serve --unix my_bus --tcp 127.0.0.1:8000
+t2 serve tcp:127.0.0.1:8000 unix:my_bus
 ```
 
 ### Connect to a server

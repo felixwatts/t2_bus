@@ -21,7 +21,7 @@ enum ResolvedBusAddr{
 impl Display for ResolvedBusAddr{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self{
-            ResolvedBusAddr::Tcp(addr) => write!(f, "tcp:{}", addr),
+            ResolvedBusAddr::Tcp(addr) => write!(f, "tcp:{addr}"),
             ResolvedBusAddr::Unix(addr) => write!(f, "unix:{}", addr.display()),
         }
     }
@@ -31,7 +31,7 @@ fn validate_bus_addr_name(s: &str) -> Result<String, String> {
     let valid = Regex::new(BUS_ADDR_NAME_RGX).unwrap().is_match(s);
     match valid {
         true => Ok(s.to_string()),
-        false => Err(format!("Invalid bus address name, must contain only lowercase and underscore.")),
+        false => Err("Invalid bus address name, must contain only lowercase and underscore.".to_string()),
     }
 }
 
@@ -39,7 +39,7 @@ fn validate_bus_addr(s: &str) -> Result<String, String> {
     let valid = Regex::new(BUS_ADDR_RGX).unwrap().is_match(s);
     match valid {
         true => Ok(s.to_string()),
-        false => Err(format!("Invalid bus address. Must be in the format of (tcp|unix|name):<address or name>")),
+        false => Err("Invalid bus address. Must be in the format of (tcp|unix|name):<address or name>".to_string()),
     }
 }
 
@@ -52,35 +52,54 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Start a bus server
     Serve {
+        /// One or more addresses to serve on e.g. `tcp:127.0.0.1` or `unix:my_bus` or `name:bus`
         #[arg(value_parser = validate_bus_addr)]
         addr: Vec<String>
     },
+    /// Connect to a bus server, subscribe to a topic and print received messages to the console
     Sub{
+        /// The topic to subscribe to
         topic: String,
+        /// The address of the bus server to connect to e.g. `tcp:127.0.0.1` or `unix:my_bus` or `name:bus`. If none is provided the default will be used
         #[arg(value_parser = validate_bus_addr)]
         addr: Option<String>
     },
+    /// Connect to a bus server and publish a StringProtocol message to a topic. This utility only supports `f32` and `String` type messages.
     Pub{
+        /// The topic to publish on. It must start with `f32/` or `string/` to denote which protocol it should be published on.
         topic: String,
+        /// The message to publish
         value: String,
+        /// The address of the bus server to connect to e.g. `tcp:127.0.0.1` or `unix:my_bus` or `name:bus`. If none is provided the default will be used
         #[arg(value_parser = validate_bus_addr)]
         addr: Option<String>
     },
-    Lst{
+    /// Connect to a bus, subscribe to the given topic and list the topics of any messages received
+    Ls{
+        /// The topic to subscribe to
         topic: String,
+        /// The address of the bus server to connect to e.g. `tcp:127.0.0.1` or `unix:my_bus` or `name:bus`. If none is provided the default will be used
         #[arg(value_parser = validate_bus_addr)]
         addr: Option<String>
     },
+    /// Register a bus server by a name for easy connection in future
     Register{
+        /// The name to give the server. You can then use this name as a bus address argument to this program
         #[arg(value_parser = validate_bus_addr_name)]
         name: String,
+        /// The address of the bus server e.g. `tcp:127.0.0.1` or `unix:my_bus`
         #[arg(value_parser = validate_bus_addr)]
         addr: String,
+        /// True if this should be your default bus server. The default server will be used for any commands
+        /// where the bus address is not specified
         #[arg(long)]
         default: bool
     },
+    /// Unregister a registered bus server
     Unregister{
+        /// The name of the server to unregister
         #[arg(value_parser = validate_bus_addr_name)]
         name: String
     }
@@ -91,7 +110,7 @@ impl Commands{
         match self{
             Commands::Serve { .. } => Ok(()),
             Commands::Sub { ..} => Ok(()),
-            Commands::Lst { ..} => Ok(()),
+            Commands::Ls { ..} => Ok(()),
             Commands::Pub { topic, value, .. } => {
                 if !(topic.starts_with("f32/") || topic.starts_with("string/")) {
                     return Err(Error("Unknown protocol".into()))
@@ -186,7 +205,7 @@ async fn run() -> Result<(), Error> {
                 println!("{}: {val_str}", msg.topic)
             }
         },
-        Commands::Lst { addr, topic } => {
+        Commands::Ls { addr, topic } => {
             let client = build_client(&addr).await?;
             let mut encountered_topics = HashSet::new();
 
@@ -226,7 +245,7 @@ async fn run() -> Result<(), Error> {
 
             let config_str = config
                 .iter()
-                .map(|(name, addr)| format!("{} {}\n", name, addr.to_string()))
+                .map(|(name, addr)| format!("{name} {addr}\n"))
                 .collect::<Vec<_>>()
                 .join("");
             let path = PathBuf::from(home).join(".t2");
@@ -241,7 +260,7 @@ async fn run() -> Result<(), Error> {
             config.retain(|(n, _)| n != &name);
             let config_str = config
                 .iter()
-                .map(|(name, addr)| format!("{} {}\n", name, addr.to_string()))
+                .map(|(name, addr)| format!("{name} {addr}\n"))
                 .collect::<Vec<_>>()
                 .join("");
             let path = PathBuf::from(home).join(".t2");
@@ -276,7 +295,7 @@ fn resolve_addr(addr: &Option<String>) -> Result<ResolvedBusAddr, Error>{
                 "unix" => Ok(ResolvedBusAddr::Unix(PathBuf::from(addr))),
                 "name" => {
                     let config = parse_config()?;
-                    let addr = config.into_iter().find(|(name, _)| name == addr).ok_or(Error("Address not found in config".into()))?;
+                    let addr = config.into_iter().find(|(name, _)| name == addr).ok_or(Error(format!("Name is not registered: {addr}")))?;
                     Ok(addr.1)
                 },
                 _ => Err(Error("Invalid address type".into()))

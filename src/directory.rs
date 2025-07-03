@@ -123,7 +123,7 @@ impl Directory {
     pub(crate) fn get_subscribers(&self, topic: &[&str]) -> Vec<u32> {
         let mut result = HashSet::new();
         self._get_subscribers(topic, &mut result, false);
-        return result.drain().collect();
+        result.drain().collect()
     }
 
     // Unsubscribes `client` from all topics and returns a list of topics

@@ -43,10 +43,10 @@ fn test_rgx_topic() {
 
 pub(crate) fn parse_topic(topic_str: &str) -> BusResult<Vec<&str>> {
     if !RGX_TOPIC.is_match(topic_str) {
-        return Err(BusError::InvalidTopicString(format!("Invalid topic string: {}", topic_str)));
+        return Err(BusError::InvalidTopicString(format!("Invalid topic string: {topic_str}")));
     }
 
-    return Ok(topic_str.split('/').collect::<Vec<&str>>());
+    Ok(topic_str.split('/').collect::<Vec<&str>>())
 }
 
 // pub fn get_protocol(topic_str: &str) -> BusResult<&str> {
@@ -56,7 +56,7 @@ pub(crate) fn parse_topic(topic_str: &str) -> BusResult<Vec<&str>> {
 pub fn prefix_topic(prefix: &str, topic: &str) -> String {
     match topic {
         "" => prefix.to_string(),
-        _ => format!("{}/{}", prefix, topic),
+        _ => format!("{prefix}/{topic}"),
     }
 }
 

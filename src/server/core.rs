@@ -123,14 +123,14 @@ impl Core {
             ClientStub::new(client_id, transport, self.task_sender.clone())?;
 
         tokio::spawn(async move {
-            println!("[B] Client #{} connected", client_id);
+            println!("[B] Client #{client_id} connected");
 
             match client.serve().await {
                 Ok(_) | Err(BusError::ChannelClosed) => {}
-                Err(e) => println!("[B] Client #{}: Error: {:?}", client_id, e)
+                Err(e) => println!("[B] Client #{client_id}: Error: {e:?}")
             }
 
-            println!("[B] Client #{} disconnected", client_id);
+            println!("[B] Client #{client_id} disconnected");
         });
 
         self.protocol_server_senders
