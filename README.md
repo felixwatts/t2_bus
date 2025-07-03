@@ -117,7 +117,7 @@ to that client. The serving client should then produce a response which will be 
 At most one client may serve a given topic at a time. However, it _is_ allowed to publish/subscribe on a topic while that 
 topic is being served as the two systems do not interact.
 
-Topic wildcards are not supported for either serving or requesting.
+Topic wildcards (see below) are not supported for either serving or requesting.
 
 ```rust
 use t2_bus::prelude::*;
