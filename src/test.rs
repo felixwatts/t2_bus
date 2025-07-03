@@ -1,4 +1,4 @@
-use std::{os::unix::net::SocketAddr, time::{Duration, Instant}};
+use std::{time::{Duration, Instant}};
 use futures::{stream::FuturesUnordered, StreamExt};
 use tokio::{io::AsyncWriteExt, join, net::UnixStream, task::JoinHandle};
 use super::protocol::{PublishProtocol, RequestProtocol};
@@ -395,7 +395,7 @@ async fn test_respond_with_bad_request_id() {
 }
 
 #[tokio::test]
-async fn malformed_message_doesnt_crash_server(){
+async fn malformed_message_does_not_crash_server(){
     let addr = unique_addr();
     let (stopper, _) = ServerBuilder::new().serve_unix_socket(addr.clone()).build().await.unwrap();
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();

@@ -2,8 +2,10 @@
     "cSpell.words": [
         "Addrs",
         "cbor",
+        "deser",
         "flate",
         "oneshot",
+        "serde",
         "unserve",
         "Unsrv",
         "Unsub"

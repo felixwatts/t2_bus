@@ -6,7 +6,9 @@ The bus supports three transport types:
 
 - Memory: messages are passed via a memory queue between clients that exist within the same process.
 - Unix: Messages are passed via a Unix socket between clients that exist within the same or different processes on a single host machine.
-- TCP: Messages are passed via a TCP socket between clients that may be on different hosts. Optionally, TLS may be used to provide encryption and mutual authentication between the client and server.
+- TCP: Messages are passed via a TCP socket between clients that may be on different hosts.
+
+Internally, messages are serialized using the CBOR format and compressed using GZIP if above a certain size threshold.
 
 ## Usage
 
