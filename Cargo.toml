@@ -3,12 +3,12 @@ name = "t2_bus"
 version = "0.1.0"
 authors = ["Felix Watts <felixwatts@gmail.com>"]
 edition = "2018"
-keywords = ["message bus", "pubsub", "pub sub", "interprocess", "request response", "microservice", "bus"]
+keywords = ["message bus", "pubsub", "request response", "microservice", "bus"]
 license = "MIT"
 description = "An inter- or intra-process message bus supporting publish/subscribe and request/response."
 repository = "https://github.com/felixwatts/t2_bus"
 readme = "README.md"
-categories = ["asynchronous", "concurrency"]
+categories = ["asynchronous", "concurrency", "command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
