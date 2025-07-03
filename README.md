@@ -8,55 +8,56 @@ The bus supports three transport types:
 - Unix: Messages are passed via a Unix socket between clients that exist within the same or different processes on a single host machine.
 - TCP: Messages are passed via a TCP socket between clients that may be on different hosts. Optionally, TLS may be used to provide encryption and mutual authentication between the client and server.
 
-## Unix Mode
+## Usage
 
-The bus can operate as an inter-process message bus. In this case the server and each of the clients run in separate processes and messages are passed via a Unix socket.
+### Start a bus server
 
-The binary `t2` can be used to run an inter-process bus at a specified unix socket address:
+```rust
+use t2_bus::prelude::*;
+async fn start_server() {
+    let (server_stopper, memory_connector) = ServerBuilder::new()
+        .serve_unix_socket("my_bus".parse().unwrap())
+        .serve_memory()
+        .serve_tcp("127.0.0.1:8000".parse().unwrap())
+        .build()
+        .await
+        .unwrap();
+
+    // The server is now listening for connections via the three specified endpoints.
+
+    server_stopper.stop(); // or drop `server_stopper`
+
+    // The server has stopped.
+}
+```
+
+Alternatively, if you don't need an in-process bus, you may use the provided command line utility `t2` to start a TCP and/or Unix socket server:
 
 ```bash
-> cargo install --path .
-> t2 serve --unix my_bus
+cargo install --path .
+t2 serve --unix my_bus --tcp 127.0.0.1:8000
 ```
 
-A client can then be created in rust code:
+### Connect to a server
 
 ```rust
 use t2_bus::prelude::*;
-async fn connect_client() {
-    // connect a new client to the bus listening at "my_bus"
-    let client = Client::new_unix(&"my_bus".into()).await.unwrap();
-# }
-```
+async fn connect_to_a_server() {
+    let (server_stopper, memory_connector) = ServerBuilder::new()
+        .serve_unix_socket("my_bus".parse().unwrap())
+        .serve_memory()
+        .serve_tcp("127.0.0.1:8000".parse().unwrap())
+        .build()
+        .await
+        .unwrap();
 
-## Memory Mode
-
-Alternatively the bus can operate in the same process as the clients. In this case messages will be passed by a memory queue, which is significantly faster.
-
-```rust
-use t2_bus::prelude::*;
-fn test() {
-    // start an in process bus service
-    let (stopper, connector) = listen_and_serve_memory().unwrap();
-    // connect a new client to the bus
-    let client = Client::new_memory(&connector).unwrap();
-}
-```
-## TCP Mode
-
-If the bus and the clients need to be on different hosts then TCP mode can used.
-
-```rust
-use t2_bus::prelude::*;
-async fn test() {
-    // start a TCP based bus
-    let stopper = listen_and_serve_tcp("localhost:4242").await.unwrap();
-    // connect a new client to the bus
-    let client = Client::new_tcp("localhost:4242").await.unwrap();
+    let memory_client = memory_connector.unwrap().connect().await.unwrap();
+    let unix_socket_client = Connector::new_unix("my_bus".parse().unwrap()).connect().await.unwrap();
+    let tcp_client = Connector::new_tcp("127.0.0.1".parse().unwrap()).connect().await.unwrap();
 }
 ```
 
-## Publish/Subscribe
+### Publish/Subscribe
 
 Clients may subscribe to topics in order to receive all messages published on matching topics.
 
@@ -78,10 +79,18 @@ impl PublishProtocol for HelloProtocol{
 
 // ..
 
-async fn test() -> BusResult<()> {
-    let (stopper, connector) = listen_and_serve_memory()?;
-    let client_1 = Client::new_memory(&connector)?;
-    let client_2 = Client::new_memory(&connector)?;
+#[tokio::main]
+async fn main() -> BusResult<()> {
+
+    let (server_stopper, memory_connector) = ServerBuilder::new()
+        .serve_memory()
+        .build()
+        .await?;
+
+    let memory_connector = memory_connector.unwrap();
+    
+    let client_1 = memory_connector.connect().await?;
+    let client_2 = memory_connector.connect().await?;
 
     // Subscribe for all `HelloProtocol` type messages published on topics matching "alice"
     let mut subscription = client_1.subscribe::<HelloProtocol>("alice").await?;
@@ -100,34 +109,7 @@ async fn test() -> BusResult<()> {
 
 ```
 
-## Topic Matching
-
-Messages are routed according to topics. A topic is a string similar in form to a file system path. Here are some examples:
-
-```text
-price
-price/eth
-price/eth/eur
-price/*/eur
-price/**
-```
-
-The topic is composed of "fragments" separated by `/`. Each fragment is either a word composed of `a-z` and `_` or the wildcard `*` or the double wildcard `**`. 
-
-Word fragments match identical word fragments. The wildcard `*` matches any fragment at the same position. The double wildcard `**` matches any fragment any number of times. 
-
-Wildcards are supported in both subscribe topics and publish topics. 
-
-To illustrate topic matching, consider an example chat app. If we define that messages from a `user` in a `room` are published to the topic `<room>/<user>` then:
-
-- `alice` publishes a message in the `lobby` by publishing to `lobby/alice`.
-- `alice` publishes a message in all rooms by publishing to `*/alice`
-- `bob` subscribes to `alice`'s messages in the `lobby` by subscribing to `lobby/alice`
-- `bob` subscribes to all messages in the `lobby` by subscribing to `lobby/*`
-- `bob` subscribes to alice's messages in all rooms by subscribing to `*/alice`
-- `bob` subscribes to all messages in all rooms by subscribing to `**`
-
-## Request/Response
+### Request/Response
 
 Clients may begin to "serve" a topic. While serving a topic, requests on that protocol and topic will be routed exclusively 
 to that client. The serving client should then produce a response which will be routed back to the origin of the request.
@@ -160,25 +142,57 @@ impl RequestProtocol for HelloRequest{
 #[tokio::main]
 async fn main() -> BusResult<()> {
 
-let (stopper, connector) = listen_and_serve_memory()?;
+    let (server_stopper, memory_connector) = ServerBuilder::new()
+        .serve_memory()
+        .build()
+        .await?;
 
-let client_1 = Client::new_memory(&connector)?;
-let client_2 = Client::new_memory(&connector)?;
-
-// A client begins to serve the `HelloProtocol` at topic ''
-let mut request_subscription = client_1.serve::<HelloRequest>("").await?;
-
-tokio::spawn(async move {
-    // Another client sends a HelloProtocol request on topic '' and later receives a response
-    let response = client_2.request("", &HelloRequest("Alice".to_string())).await.unwrap();
-});
-
-// The serving client receives the request...
-let (_topic, request_id, request) = request_subscription.recv().await.unwrap();
+    let memory_connector = memory_connector.unwrap();
     
-// ...and sends the response
-client_1.respond::<HelloRequest>(request_id, &HelloResponse(format!("Hello {}", &request.0))).await?;
+    let client_1 = memory_connector.connect().await?;
+    let client_2 = memory_connector.connect().await?;
 
-Ok(())
+    // A client begins to serve the `HelloProtocol` at topic ''
+    let mut request_subscription = client_1.serve::<HelloRequest>("").await?;
+
+    tokio::spawn(async move {
+        // Another client sends a HelloProtocol request on topic '' and later receives a response
+        let response = client_2.request("", &HelloRequest("Alice".to_string())).await.unwrap();
+    });
+
+    // The serving client receives the request...
+    let (_topic, request_id, request) = request_subscription.recv().await.unwrap();
+        
+    // ...and sends the response
+    client_1.respond::<HelloRequest>(request_id, &HelloResponse(format!("Hello {}", &request.0))).await?;
+
+    Ok(())
 }
 ```
+
+## Topic Matching
+
+Messages are routed according to topics. A topic is a string similar in form to a file system path. Here are some examples:
+
+```text
+price
+price/eth
+price/eth/eur
+price/*/eur
+price/**
+```
+
+The topic is composed of "fragments" separated by `/`. Each fragment is either a word composed of `a-z` and `_` or the wildcard `*` or the double wildcard `**`. 
+
+Word fragments match identical word fragments. The wildcard `*` matches any fragment at the same position. The double wildcard `**` matches any fragment any number of times. 
+
+Wildcards are supported in both subscribe topics and publish topics. 
+
+To illustrate topic matching, consider an example chat app. If we define that messages from a `user` in a `room` are published to the topic `<room>/<user>` then:
+
+- `alice` publishes a message in the `lobby` by publishing to `lobby/alice`.
+- `alice` publishes a message in all rooms by publishing to `*/alice`
+- `bob` subscribes to `alice`'s messages in the `lobby` by subscribing to `lobby/alice`
+- `bob` subscribes to all messages in the `lobby` by subscribing to `lobby/*`
+- `bob` subscribes to alice's messages in all rooms by subscribing to `*/alice`
+- `bob` subscribes to all messages in all rooms by subscribing to `**`

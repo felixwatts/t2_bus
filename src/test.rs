@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::{os::unix::net::SocketAddr, time::{Duration, Instant}};
 use futures::{stream::FuturesUnordered, StreamExt};
 use tokio::{io::AsyncWriteExt, join, net::UnixStream, task::JoinHandle};
 use super::protocol::{PublishProtocol, RequestProtocol};
@@ -383,15 +383,13 @@ async fn test_respond_with_bad_request_id() {
             .respond::<TestReq>(req_id + 1, &TestRsp("PONG".into()))
             .await;
 
-        assert_eq!(BusResult::Err(BusError::RequestFailed("Respond failed: Invalid request ID".into())), result);
+        assert_eq!(BusResult::Err(BusError::RequestFailed("Respond failed: Invalid request ID or requester disconnected".into())), result);
     });
 
     let _ = tokio::time::timeout(
         Duration::from_secs(3), 
         client_2.request("ping", &TestReq("PING".into()))
     ).await;
-
-    // assert_eq!(BusResult::Err(BusError::RequestFailedTimeout), rsp_result);
 
     let _ = tokio::try_join!(ping_task).unwrap();
 }
@@ -434,7 +432,7 @@ async fn malformed_message_doesnt_crash_server(){
 #[tokio::test]
 async fn test_multi_transport(){
     let unix_addr = crate::test::unique_addr();
-    let tcp_addr = "localhost:8445";
+    let tcp_addr = "127.0.0.1:8445";
 
     let (stopper, memory_connector) = ServerBuilder::new()
         .serve_memory()
@@ -475,12 +473,14 @@ async fn test_multi_transport(){
 
 #[tokio::test]
 pub async fn test_client_timeout() {
-    // There are no assertions here, just run the test and observe the output to check that the timed out client is disconnected.
     let addr = unique_addr();
     let (stopper, _) = ServerBuilder::new().serve_unix_socket(addr.clone()).build().await.unwrap();
-    let _socket = UnixStream::connect(addr.clone()).await.unwrap();
+    let socket = UnixStream::connect(addr.clone()).await.unwrap();
 
     tokio::time::sleep(Duration::from_secs(KEEP_ALIVE_TIMEOUT_S + 1)).await;
+
+    // The connection has been closed by the server, write fails.
+    assert!(matches!(socket.try_write(&[0x00]), Err(_)));
 
     stopper.stop().await.unwrap();
 }
