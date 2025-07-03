@@ -484,3 +484,20 @@ pub async fn test_client_timeout() {
 
     stopper.stop().await.unwrap();
 }
+
+#[tokio::test]
+pub async fn test_dropping_server_stopper_stops_server() {
+    let (stopper, connector) = ServerBuilder::new().serve_memory().build().await.unwrap();
+
+    let client = connector.unwrap().connect().await.unwrap();
+
+    let publish_result = client.publish("test", &TestPub("Test".into())).await;
+
+    assert!(matches!(publish_result, Ok(_)));
+
+    drop(stopper);
+
+    let publish_result = client.publish("test", &TestPub("Test".into())).await;
+
+    assert!(matches!(publish_result, Err(BusError::RequestFailedChannelClosed)));
+}
