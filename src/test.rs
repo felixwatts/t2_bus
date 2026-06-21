@@ -129,6 +129,25 @@ async fn test_subscribe_publish_empty_topic() {
 }
 
 #[tokio::test]
+async fn test_subscription_stream() {
+    let (client_1, client_2, stopper) = setup_local().await;
+
+    let mut subscription = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
+
+    client_2
+        .publish("a/b/c", &TestPub("d".into()))
+        .await
+        .unwrap();
+
+    let (topic, payload) = subscription.next().await.unwrap();
+
+    assert_eq!("test/a/b/c", &topic);
+    assert_eq!("d", payload.0);
+
+    stopper.stop().await.expect_err("Expect channel closed");
+}
+
+#[tokio::test]
 async fn test_unsubscribe() {
     let (client_1, client_2, _stopper) = setup().await;
 
@@ -203,6 +222,36 @@ async fn test_request_response() {
     assert_eq!("PONG", rsp_payload.0);
 
     let _ = tokio::try_join!(ping_task).unwrap();
+}
+
+#[tokio::test]
+async fn test_request_subscription_stream() {
+    let (client_1, client_2, stopper) = setup_local().await;
+
+    let mut request_subscription = client_1.serve::<TestReq>("ping").await.unwrap();
+
+    let ping_task = tokio::spawn(async move {
+        let (topic, req_id, req) = request_subscription.next().await.unwrap();
+
+        assert_eq!("test/ping", &topic);
+        assert_eq!("PING", req.0);
+
+        client_1
+            .respond::<TestReq>(req_id, &TestRsp("PONG".into()))
+            .await
+            .unwrap();
+    });
+
+    let rsp_payload = client_2
+        .request("ping", &TestReq("PING".into()))
+        .await
+        .unwrap();
+
+    assert_eq!("PONG", rsp_payload.0);
+
+    let _ = tokio::try_join!(ping_task).unwrap();
+
+    stopper.stop().await.expect_err("Expect channel closed");
 }
 
 #[tokio::test]

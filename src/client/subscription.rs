@@ -1,5 +1,8 @@
 use super::core::{Task, TaskUnsrv, TaskUnsub};
 use crate::protocol::{MsgId, UnsrvMsg, UnsubMsg};
+use futures::Stream;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 /// Represents a subscription to a protocol `T` and topic. Drop the `Subscription` to unsubscribe.
@@ -22,6 +25,14 @@ impl<T> Subscription<T> {
     /// Receive the next message in the feed. Returns `None` if the feed ends.
     pub async fn recv(&mut self) -> Option<T> {
         self.receiver.recv().await
+    }
+}
+
+impl<T> Stream for Subscription<T> {
+    type Item = T;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.get_mut().receiver.poll_recv(cx)
     }
 }
 
@@ -80,6 +91,14 @@ impl<T> RequestSubscription<T> {
     /// to the requestor. Returns `None` if the feed ends.
     pub async fn recv(&mut self) -> Option<(String, MsgId, T)> {
         self.receiver.recv().await
+    }
+}
+
+impl<T> Stream for RequestSubscription<T> {
+    type Item = (String, MsgId, T);
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.get_mut().receiver.poll_recv(cx)
     }
 }
 
