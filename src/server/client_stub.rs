@@ -2,13 +2,16 @@ use std::time::Duration;
 
 use super::{Task, KEEP_ALIVE_TIMEOUT_S};
 use crate::{
+    err::*,
     protocol::{Msg, ProtocolClient, ProtocolServer},
     transport::Transport,
-    err::*,
 };
 use futures::SinkExt;
 use futures::StreamExt;
-use tokio::{sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender}, time::Instant};
+use tokio::{
+    sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+    time::Instant,
+};
 
 pub(crate) struct ClientStub {
     id: u32,
@@ -42,8 +45,11 @@ impl ClientStub {
         result
     }
 
-    async fn _serve(&mut self) -> BusResult<()> {     
-        let mut keep_alive_interval = tokio::time::interval_at(Instant::now() + Duration::from_secs(KEEP_ALIVE_TIMEOUT_S), Duration::from_secs(KEEP_ALIVE_TIMEOUT_S));   
+    async fn _serve(&mut self) -> BusResult<()> {
+        let mut keep_alive_interval = tokio::time::interval_at(
+            Instant::now() + Duration::from_secs(KEEP_ALIVE_TIMEOUT_S),
+            Duration::from_secs(KEEP_ALIVE_TIMEOUT_S),
+        );
         loop {
             tokio::select! {
                 // message from  client

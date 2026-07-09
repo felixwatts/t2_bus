@@ -60,7 +60,7 @@ pub(crate) enum Task {
     Unsrv(TaskUnsrv),
     Stop,
     StopBus(TaskStopBus),
-    KeepAlive
+    KeepAlive,
 }
 
 pub(crate) struct ClientCore<TTransport>
@@ -96,12 +96,12 @@ where
             callbacks_req: HashMap::new(),
         };
 
-        let handle = tokio::spawn(async move { 
-            debug!("Bus client started");
+        let handle = tokio::spawn(async move {
+            debug!("[C] Bus client started");
 
-            let result = core.main_loop().await ;
+            let result = core.main_loop().await;
 
-            debug!("Bus client stopped: {result:?}");
+            debug!("[C] Bus client stopped: {result:?}");
 
             result
         });
@@ -110,7 +110,8 @@ where
     }
 
     async fn main_loop(&mut self) -> BusResult<()> {
-        let mut keep_alive_interval = tokio::time::interval(Duration::from_secs(KEEP_ALIVE_INTERVAL_S));
+        let mut keep_alive_interval =
+            tokio::time::interval(Duration::from_secs(KEEP_ALIVE_INTERVAL_S));
         loop {
             tokio::select! {
                 // message from server
@@ -143,7 +144,7 @@ where
         let msg = self.before_send(task)?;
 
         if log_enabled!(Level::Trace) {
-            trace!("{}", crate::debug::client_msg_to_string(&msg));
+            trace!("[C] --> [B] {}", crate::debug::client_msg_to_string(&msg));
         }
 
         self.transport.send(msg).await?;
@@ -217,13 +218,11 @@ where
                     id,
                     content: ProtocolClient::Stop,
                 }
-            },
-            Task::KeepAlive => {
-                Msg {
-                    id,
-                    content: ProtocolClient::KeepAlive,
-                }
             }
+            Task::KeepAlive => Msg {
+                id,
+                content: ProtocolClient::KeepAlive,
+            },
         };
 
         Ok(msg)
@@ -231,7 +230,7 @@ where
 
     async fn after_receive(&mut self, msg: Msg<ProtocolServer>) -> BusResult<()> {
         if log_enabled!(Level::Trace) {
-            trace!("{}", crate::debug::server_msg_to_string(&msg));
+            trace!("[C] <-- [B] {}", crate::debug::server_msg_to_string(&msg));
         }
 
         match msg.content {

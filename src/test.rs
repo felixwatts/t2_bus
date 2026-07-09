@@ -1,8 +1,14 @@
-use std::{time::{Duration, Instant}};
-use futures::{stream::FuturesUnordered, StreamExt};
-use tokio::{io::AsyncWriteExt, join, net::UnixStream, task::JoinHandle};
 use super::protocol::{PublishProtocol, RequestProtocol};
-use crate::{client::Client, err::{BusError, BusResult}, prelude::ServerBuilder, protocol::KEEP_ALIVE_TIMEOUT_S, stopper::{Stopper}};
+use crate::{
+    client::Client,
+    err::{BusError, BusResult},
+    prelude::ServerBuilder,
+    protocol::KEEP_ALIVE_TIMEOUT_S,
+    stopper::Stopper,
+};
+use futures::{stream::FuturesUnordered, StreamExt};
+use std::time::{Duration, Instant};
+use tokio::{io::AsyncWriteExt, join, net::UnixStream, task::JoinHandle};
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 struct TestPub(pub String);
@@ -50,11 +56,7 @@ async fn setup_tcp() -> (Client, Client, impl Stopper) {
     (client_1, client_2, stopper)
 }
 
-async fn setup_local() -> (
-    Client, 
-    Client, 
-    impl Stopper
-) {
+async fn setup_local() -> (Client, Client, impl Stopper) {
     let (stopper, connector) = crate::transport::memory::serve().unwrap();
 
     let client_1 = crate::transport::memory::connect(&connector).unwrap();
@@ -353,10 +355,7 @@ async fn stress_test_pub_sub_memory() {
 
     let mut client_join_handles = FuturesUnordered::new();
 
-    async fn run_client(
-        client_id: i32,
-        client: Client
-    ) -> BusResult<()> {
+    async fn run_client(client_id: i32, client: Client) -> BusResult<()> {
         let topic = String::new();
         let mut sub = client.subscribe::<TestPub>(&topic).await?;
 
@@ -432,21 +431,31 @@ async fn test_respond_with_bad_request_id() {
             .respond::<TestReq>(req_id + 1, &TestRsp("PONG".into()))
             .await;
 
-        assert_eq!(BusResult::Err(BusError::RequestFailed("Respond failed: Invalid request ID or requester disconnected".into())), result);
+        assert_eq!(
+            BusResult::Err(BusError::RequestFailed(
+                "Respond failed: Invalid request ID or requester disconnected".into()
+            )),
+            result
+        );
     });
 
     let _ = tokio::time::timeout(
-        Duration::from_secs(3), 
-        client_2.request("ping", &TestReq("PING".into()))
-    ).await;
+        Duration::from_secs(3),
+        client_2.request("ping", &TestReq("PING".into())),
+    )
+    .await;
 
     let _ = tokio::try_join!(ping_task).unwrap();
 }
 
 #[tokio::test]
-async fn malformed_message_does_not_crash_server(){
+async fn malformed_message_does_not_crash_server() {
     let addr = unique_addr();
-    let (stopper, _) = ServerBuilder::new().serve_unix_socket(addr.clone()).build().await.unwrap();
+    let (stopper, _) = ServerBuilder::new()
+        .serve_unix_socket(addr.clone())
+        .build()
+        .await
+        .unwrap();
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();
     let _ = socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
 
@@ -470,7 +479,10 @@ async fn malformed_message_does_not_crash_server(){
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();
     let _ = socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
 
-    assert_eq!(sub.recv().await.unwrap(), ("test/a".into(), TestPub("hello".into())));
+    assert_eq!(
+        sub.recv().await.unwrap(),
+        ("test/a".into(), TestPub("hello".into()))
+    );
 
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();
     let _ = socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
@@ -479,7 +491,7 @@ async fn malformed_message_does_not_crash_server(){
 }
 
 #[tokio::test]
-async fn test_multi_transport(){
+async fn test_multi_transport() {
     let unix_addr = crate::test::unique_addr();
     let tcp_addr = "127.0.0.1:8445";
 
@@ -500,20 +512,44 @@ async fn test_multi_transport(){
     let mut tcp_client_sub = tcp_client.subscribe::<TestPub>("*").await.unwrap();
 
     let memory_client_test_msg = TestPub("m".into());
-    memory_client.publish("m", &memory_client_test_msg).await.unwrap();
-    assert_eq!(memory_client_test_msg, memory_client_sub.recv().await.unwrap().1);
-    assert_eq!(memory_client_test_msg, unix_client_sub.recv().await.unwrap().1);
-    assert_eq!(memory_client_test_msg, tcp_client_sub.recv().await.unwrap().1);
+    memory_client
+        .publish("m", &memory_client_test_msg)
+        .await
+        .unwrap();
+    assert_eq!(
+        memory_client_test_msg,
+        memory_client_sub.recv().await.unwrap().1
+    );
+    assert_eq!(
+        memory_client_test_msg,
+        unix_client_sub.recv().await.unwrap().1
+    );
+    assert_eq!(
+        memory_client_test_msg,
+        tcp_client_sub.recv().await.unwrap().1
+    );
 
     let unix_client_test_msg = TestPub("u".into());
-    unix_client.publish("u", &unix_client_test_msg).await.unwrap();
-    assert_eq!(unix_client_test_msg, memory_client_sub.recv().await.unwrap().1);
-    assert_eq!(unix_client_test_msg, unix_client_sub.recv().await.unwrap().1);
+    unix_client
+        .publish("u", &unix_client_test_msg)
+        .await
+        .unwrap();
+    assert_eq!(
+        unix_client_test_msg,
+        memory_client_sub.recv().await.unwrap().1
+    );
+    assert_eq!(
+        unix_client_test_msg,
+        unix_client_sub.recv().await.unwrap().1
+    );
     assert_eq!(unix_client_test_msg, tcp_client_sub.recv().await.unwrap().1);
 
     let tcp_client_test_msg = TestPub("t".into());
     tcp_client.publish("t", &tcp_client_test_msg).await.unwrap();
-    assert_eq!(tcp_client_test_msg, memory_client_sub.recv().await.unwrap().1);
+    assert_eq!(
+        tcp_client_test_msg,
+        memory_client_sub.recv().await.unwrap().1
+    );
     assert_eq!(tcp_client_test_msg, unix_client_sub.recv().await.unwrap().1);
     assert_eq!(tcp_client_test_msg, tcp_client_sub.recv().await.unwrap().1);
 
@@ -523,7 +559,11 @@ async fn test_multi_transport(){
 #[tokio::test]
 pub async fn test_client_timeout() {
     let addr = unique_addr();
-    let (stopper, _) = ServerBuilder::new().serve_unix_socket(addr.clone()).build().await.unwrap();
+    let (stopper, _) = ServerBuilder::new()
+        .serve_unix_socket(addr.clone())
+        .build()
+        .await
+        .unwrap();
     let socket = UnixStream::connect(addr.clone()).await.unwrap();
 
     tokio::time::sleep(Duration::from_secs(KEEP_ALIVE_TIMEOUT_S + 1)).await;
@@ -548,5 +588,8 @@ pub async fn test_dropping_server_stopper_stops_server() {
 
     let publish_result = client.publish("test", &TestPub("Test".into())).await;
 
-    assert!(matches!(publish_result, Err(BusError::RequestFailedChannelClosed)));
+    assert!(matches!(
+        publish_result,
+        Err(BusError::RequestFailedChannelClosed)
+    ));
 }

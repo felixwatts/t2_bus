@@ -1,11 +1,11 @@
-use crate::{err::*, transport::cbor_codec::CborCodec};
 use super::protocol::Msg;
+use crate::{err::*, transport::cbor_codec::CborCodec};
 
 pub mod cbor_codec;
 pub mod memory;
-pub mod unix;
 pub mod tcp;
 pub mod tls;
+pub mod unix;
 
 pub trait Transport<TSend, TRecv>:
     'static
@@ -21,6 +21,6 @@ impl<TSend, TRecv, TSocket> Transport<TSend, TRecv>
 where
     TSend: 'static + serde::Serialize + Send,
     TRecv: 'static + serde::de::DeserializeOwned + Send,
-    TSocket: 'static + Send + Unpin + tokio::io::AsyncWrite + tokio::io::AsyncRead
+    TSocket: 'static + Send + Unpin + tokio::io::AsyncWrite + tokio::io::AsyncRead,
 {
 }

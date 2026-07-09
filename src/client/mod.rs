@@ -1,18 +1,14 @@
+pub mod connector;
 mod core;
 pub mod subscription;
-pub mod connector;
 
 use self::core::*;
 use self::subscription::*;
-use super::{
-    topic::prefix_topic,
-    transport::Transport,
-};
-use crate::protocol::*;
+use super::{topic::prefix_topic, transport::Transport};
 use crate::err::*;
+use crate::protocol::*;
 
-
-use std::{time::Duration};
+use std::time::Duration;
 
 use tokio::{
     sync::mpsc::unbounded_channel, sync::mpsc::UnboundedSender, task::JoinHandle, time::timeout,
@@ -24,17 +20,21 @@ const ACK_TIMEOUT_S: u64 = 5;
 // #[derive(Clone)]
 pub struct Client {
     task_sender: tokio::sync::mpsc::UnboundedSender<Task>,
-    core_join_handle: JoinHandle<BusResult<()>>
+    core_join_handle: JoinHandle<BusResult<()>>,
 }
 
 impl Client {
-    pub(crate) fn new(transport: impl Transport<ProtocolClient, ProtocolServer>) -> BusResult<Client>
-    {
+    pub(crate) fn new(
+        transport: impl Transport<ProtocolClient, ProtocolServer>,
+    ) -> BusResult<Client> {
         let (task_sender, task_receiver) = tokio::sync::mpsc::unbounded_channel();
 
         let core_join_handle = ClientCore::start(transport, task_receiver)?;
 
-        let client = Client { task_sender, core_join_handle };
+        let client = Client {
+            task_sender,
+            core_join_handle,
+        };
 
         Ok(client)
     }
@@ -65,10 +65,7 @@ impl Client {
     /// Requests on this protocol and topic will be routed to you via the returned `RequestSubscription`.
     /// Drop the `RequestSubscription` to stop serving.
     /// Errors if the specified protocol and topic is already being served by someone else.
-    pub async fn serve<TProtocol>(
-        & self,
-        topic: &str,
-    ) -> BusResult<RequestSubscription<TProtocol>>
+    pub async fn serve<TProtocol>(&self, topic: &str) -> BusResult<RequestSubscription<TProtocol>>
     where
         TProtocol: RequestProtocol,
     {
@@ -144,7 +141,7 @@ impl Client {
                 let rsp = crate::transport::cbor_codec::deser(&data[..])?;
                 Ok(rsp)
             }
-            RspMsgStatus::Timeout => Err(BusError::RequestFailedTimeout)
+            RspMsgStatus::Timeout => Err(BusError::RequestFailedTimeout),
         }
     }
 
@@ -177,11 +174,7 @@ impl Client {
 
     /// Respond to a received request. The `request_id` parameter should correspond to that of a received request.
     /// The given response will be routed to the original requester.
-    pub async fn respond<TProtocol>(
-        &self,
-        request_id: MsgId,
-        rsp: &TProtocol::Rsp,
-    ) -> BusResult<()>
+    pub async fn respond<TProtocol>(&self, request_id: MsgId, rsp: &TProtocol::Rsp) -> BusResult<()>
     where
         TProtocol: RequestProtocol,
     {

@@ -5,10 +5,10 @@ pub mod transport;
 
 pub(crate) mod client;
 pub(crate) mod directory;
+pub(crate) mod err;
+pub(crate) mod protocol;
 pub(crate) mod server;
 pub(crate) mod topic;
-pub(crate) mod protocol;
-pub(crate) mod err;
 
 mod debug;
 mod stopper;

@@ -21,7 +21,7 @@ where
     pub fn new() -> CborCodec<TEncode, TDecode> {
         CborCodec {
             e: PhantomData {},
-            d: PhantomData {}
+            d: PhantomData {},
         }
     }
 }
@@ -59,7 +59,7 @@ where
                         src.advance(msg_len);
                         Ok(Some(msg))
                     }
-                    Err(e) => Err(e)
+                    Err(e) => Err(e),
                 }
             }
         }
@@ -84,7 +84,7 @@ pub fn ser<T: Serialize>(value: &T) -> BusResult<Vec<u8>> {
     let mut data = vec![];
     ciborium::into_writer(value, &mut data)?;
     Ok(data)
-} 
+}
 
 /// Deserialize using the bus' internal serialization format
 pub fn deser<T: DeserializeOwned>(data: &[u8]) -> BusResult<T> {

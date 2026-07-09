@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Error, Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub enum BusError{
+pub enum BusError {
     #[error("Invalid topic string: {0}")]
     InvalidTopicString(String),
 
@@ -15,29 +15,29 @@ pub enum BusError{
     #[error("Respond failed: Invalid request ID or requester disconnected")]
     InvalidRequestId,
 
-    #[error("Claim topic failed: Already claimed")]       
+    #[error("Claim topic failed: Already claimed")]
     TopicAlreadyClaimed,
-    #[error("Claim topic failed: Wildcards not supported")]    
+    #[error("Claim topic failed: Wildcards not supported")]
     ClaimWildcardNotSupported,
 
-    #[error("Channel closed by peer")]    
+    #[error("Channel closed by peer")]
     ChannelClosed,
 
-    #[error("Service not found: {0}")]    
+    #[error("Service not found: {0}")]
     ServiceNotFound(String),
     #[error("Message delivery failed: Client #{0}: {1}")]
     DeliveryFailed(u32, String),
-    #[error("Message delivery failed: Unknown client {0}")]    
+    #[error("Message delivery failed: Unknown client {0}")]
     UnknownClient(u32),
 
-    #[error("Deserialize message failed. Protocol: {0}. Error: {1}")]    
+    #[error("Deserialize message failed. Protocol: {0}. Error: {1}")]
     MalformedMessage(String, String),
-    #[error("Serialize message failed: {0}")]    
+    #[error("Serialize message failed: {0}")]
     UnserializableMessage(String),
 
-    #[error("IO error: {0}")]    
+    #[error("IO error: {0}")]
     IOError(String),
-    #[error("Internal error: {0}")]    
+    #[error("Internal error: {0}")]
     InternalError(String),
 
     #[error("TLS configuration error: {0}")]
@@ -47,7 +47,7 @@ pub enum BusError{
     DnsLookupFailed,
 
     #[error("Client #{0} timed out, no messages or keep alives for KEEP_ALIVE_TIMEOUT_S")]
-    ClientTimeout(u32)
+    ClientTimeout(u32),
 }
 
 impl<T> From<ciborium::ser::Error<T>> for BusError {
@@ -93,4 +93,3 @@ impl From<tokio::sync::oneshot::error::RecvError> for BusError {
 }
 
 pub type BusResult<T> = Result<T, BusError>;
-

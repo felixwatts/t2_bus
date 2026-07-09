@@ -8,7 +8,11 @@ pub fn server_msg_to_string(msg: &Msg<ProtocolServer>) -> String {
         ProtocolServer::Ack(params) => format!(
             "ACK   {} {}",
             &params.msg_id,
-            params.err.as_ref().map(|e| e.to_string()).unwrap_or("".to_string())
+            params
+                .err
+                .as_ref()
+                .map(|e| e.to_string())
+                .unwrap_or("".to_string())
         ),
     };
     format!("{:>6} {}", &msg.id, &content)
@@ -25,7 +29,6 @@ pub fn client_msg_to_string(msg: &Msg<ProtocolClient>) -> String {
         ProtocolClient::Rsp(params) => format!("RSP   #{} ({})", &params.req_id, &params.payload),
         ProtocolClient::Stop => "STOP".to_string(),
         ProtocolClient::KeepAlive => "KEEP_ALIVE".to_string(),
-
     };
     format!("{:>6} {}", &msg.id, &content)
 }

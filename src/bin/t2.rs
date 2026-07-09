@@ -1,10 +1,10 @@
-use std::collections::HashSet;
-use std::{fmt::Display, net::SocketAddr, path::PathBuf};
-use clap::{command, Parser, Subcommand};
-use serde::{Deserialize, Serialize};
-use t2_bus::prelude::*;
+use clap::{Parser, Subcommand};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::net::AddrParseError;
+use std::{fmt::Display, net::SocketAddr, path::PathBuf};
+use t2_bus::prelude::*;
 
 pub const DEFAULT_BUS_ADDR: &str = ".t2";
 pub const DEFAULT_BUS_PORT: u16 = 4242;
@@ -13,14 +13,14 @@ const BUS_ADDR_RGX: &str = r"^(tcp|unix|name):(.+)$";
 const BUS_ADDR_CONFIG_RGX: &str = r"(.+?) (tcp|unix):(.*?)\n";
 
 #[derive(Debug)]
-enum ResolvedBusAddr{
+enum ResolvedBusAddr {
     Tcp(String),
-    Unix(PathBuf)
+    Unix(PathBuf),
 }
 
-impl Display for ResolvedBusAddr{
+impl Display for ResolvedBusAddr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self{
+        match self {
             ResolvedBusAddr::Tcp(addr) => write!(f, "tcp:{addr}"),
             ResolvedBusAddr::Unix(addr) => write!(f, "unix:{}", addr.display()),
         }
@@ -31,7 +31,9 @@ fn validate_bus_addr_name(s: &str) -> Result<String, String> {
     let valid = Regex::new(BUS_ADDR_NAME_RGX).unwrap().is_match(s);
     match valid {
         true => Ok(s.to_string()),
-        false => Err("Invalid bus address name, must contain only lowercase and underscore.".to_string()),
+        false => {
+            Err("Invalid bus address name, must contain only lowercase and underscore.".to_string())
+        }
     }
 }
 
@@ -39,12 +41,19 @@ fn validate_bus_addr(s: &str) -> Result<String, String> {
     let valid = Regex::new(BUS_ADDR_RGX).unwrap().is_match(s);
     match valid {
         true => Ok(s.to_string()),
-        false => Err("Invalid bus address. Must be in the format of (tcp|unix|name):<address or name>".to_string()),
+        false => Err(
+            "Invalid bus address. Must be in the format of (tcp|unix|name):<address or name>"
+                .to_string(),
+        ),
     }
 }
 
 #[derive(Parser)]
-#[command(version = "1.0", author = "Felix Watts", about = "Utilities related to the t2 bus.")]
+#[command(
+    version = "1.0",
+    author = "Felix Watts",
+    about = "Utilities related to the t2 bus."
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -56,36 +65,36 @@ enum Commands {
     Serve {
         /// One or more addresses to serve on e.g. `tcp:127.0.0.1` or `unix:my_bus` or `name:bus`
         #[arg(value_parser = validate_bus_addr)]
-        addr: Vec<String>
+        addr: Vec<String>,
     },
     /// Connect to a bus server, subscribe to a topic and print received messages to the console
-    Sub{
+    Sub {
         /// The topic to subscribe to
         topic: String,
         /// The address of the bus server to connect to e.g. `tcp:127.0.0.1` or `unix:my_bus` or `name:bus`. If none is provided the default will be used
         #[arg(value_parser = validate_bus_addr)]
-        addr: Option<String>
+        addr: Option<String>,
     },
     /// Connect to a bus server and publish a StringProtocol message to a topic. This utility only supports `f32` and `String` type messages.
-    Pub{
+    Pub {
         /// The topic to publish on. It must start with `f32/` or `string/` to denote which protocol it should be published on.
         topic: String,
         /// The message to publish
         value: String,
         /// The address of the bus server to connect to e.g. `tcp:127.0.0.1` or `unix:my_bus` or `name:bus`. If none is provided the default will be used
         #[arg(value_parser = validate_bus_addr)]
-        addr: Option<String>
+        addr: Option<String>,
     },
     /// Connect to a bus, subscribe to the given topic and list the topics of any messages received
-    Ls{
+    Ls {
         /// The topic to subscribe to
         topic: String,
         /// The address of the bus server to connect to e.g. `tcp:127.0.0.1` or `unix:my_bus` or `name:bus`. If none is provided the default will be used
         #[arg(value_parser = validate_bus_addr)]
-        addr: Option<String>
+        addr: Option<String>,
     },
     /// Register a bus server by a name for easy connection in future
-    Register{
+    Register {
         /// The name to give the server. You can then use this name as a bus address argument to this program
         #[arg(value_parser = validate_bus_addr_name)]
         name: String,
@@ -95,33 +104,35 @@ enum Commands {
         /// True if this should be your default bus server. The default server will be used for any commands
         /// where the bus address is not specified
         #[arg(long)]
-        default: bool
+        default: bool,
     },
     /// Unregister a registered bus server
-    Unregister{
+    Unregister {
         /// The name of the server to unregister
         #[arg(value_parser = validate_bus_addr_name)]
-        name: String
-    }
+        name: String,
+    },
 }
 
-impl Commands{
+impl Commands {
     fn validate(&self) -> Result<(), Error> {
-        match self{
+        match self {
             Commands::Serve { .. } => Ok(()),
-            Commands::Sub { ..} => Ok(()),
-            Commands::Ls { ..} => Ok(()),
+            Commands::Sub { .. } => Ok(()),
+            Commands::Ls { .. } => Ok(()),
             Commands::Pub { topic, value, .. } => {
                 if !(topic.starts_with("f32/") || topic.starts_with("string/")) {
-                    return Err(Error("Unknown protocol".into()))
+                    return Err(Error("Unknown protocol".into()));
                 }
 
                 if topic.starts_with("f32/") && value.parse::<f32>().is_err() {
-                    return Err(Error("When the topic starts with f32/ then the value must be a valid f32".into()))
+                    return Err(Error(
+                        "When the topic starts with f32/ then the value must be a valid f32".into(),
+                    ));
                 }
 
                 Ok(())
-            },
+            }
             Commands::Register { .. } => Ok(()),
             Commands::Unregister { .. } => Ok(()),
         }
@@ -130,25 +141,25 @@ impl Commands{
 
 struct Error(String);
 
-impl From<std::io::Error> for Error{
+impl From<std::io::Error> for Error {
     fn from(value: std::io::Error) -> Self {
         Self(value.to_string())
     }
 }
 
-impl From<BusError> for Error{
+impl From<BusError> for Error {
     fn from(value: BusError) -> Self {
         Self(value.to_string())
     }
 }
 
-impl From<AddrParseError> for Error{
+impl From<AddrParseError> for Error {
     fn from(value: AddrParseError) -> Self {
         Self(value.to_string())
     }
 }
 
-impl Display for Error{
+impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", &self.0)
     }
@@ -156,9 +167,8 @@ impl Display for Error{
 
 #[tokio::main]
 async fn main() {
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("t2_bus=info")
-    ).init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("t2_bus=info"))
+        .init();
 
     if let Err(e) = run().await {
         log::error!("{e}");
@@ -178,17 +188,17 @@ async fn run() -> Result<(), Error> {
                 match resolved_addr {
                     ResolvedBusAddr::Tcp(addr) => {
                         builder = builder.serve_tcp(addr.parse::<SocketAddr>()?);
-                    },
+                    }
                     ResolvedBusAddr::Unix(addr) => {
                         builder = builder.serve_unix_socket(addr);
-                    },
+                    }
                 }
             }
 
             let (stopper, _) = builder.build().await?;
 
             stopper.join().await?;
-        },
+        }
         Commands::Sub { addr, topic } => {
             let client = build_client(&addr).await?;
 
@@ -209,34 +219,37 @@ async fn run() -> Result<(), Error> {
 
                 println!("{}: {val_str}", msg.topic)
             }
-        },
+        }
         Commands::Ls { addr, topic } => {
             let client = build_client(&addr).await?;
             let mut encountered_topics = HashSet::new();
 
             let mut sub = client.subscribe_bytes(&topic).await?;
-            while let Some(PubMsg{ topic, .. }) = sub.recv().await {
+            while let Some(PubMsg { topic, .. }) = sub.recv().await {
                 if !encountered_topics.contains(&topic) {
                     println!("{topic}");
                     encountered_topics.insert(topic);
                 }
             }
-        },
+        }
         Commands::Pub { addr, topic, value } => {
             let client = build_client(&addr).await?;
             let payload = if topic.starts_with("f32/") {
                 t2_bus::transport::cbor_codec::ser(&F32Protocol(value.parse().unwrap()))?
-
             } else {
                 t2_bus::transport::cbor_codec::ser(&StringProtocol(value.parse().unwrap()))?
             };
 
             client.publish_bytes(&topic, payload).await?;
-        },
-        Commands::Register { name, addr, default } => {
+        }
+        Commands::Register {
+            name,
+            addr,
+            default,
+        } => {
             let home = match std::env::var("HOME") {
                 Ok(home) => home,
-                Err(_) => return Err(Error("HOME environment variable not set".into()))
+                Err(_) => return Err(Error("HOME environment variable not set".into())),
             };
             let resolved_addr = resolve_addr(&Some(addr))?;
             let mut config = parse_config()?;
@@ -255,11 +268,11 @@ async fn run() -> Result<(), Error> {
                 .join("");
             let path = PathBuf::from(home).join(".t2");
             std::fs::write(path, config_str)?;
-        },
+        }
         Commands::Unregister { name } => {
             let home = match std::env::var("HOME") {
                 Ok(home) => home,
-                Err(_) => return Err(Error("HOME environment variable not set".into()))
+                Err(_) => return Err(Error("HOME environment variable not set".into())),
             };
             let mut config = parse_config()?;
             config.retain(|(n, _)| n != &name);
@@ -276,36 +289,40 @@ async fn run() -> Result<(), Error> {
     Ok(())
 }
 
-async fn build_client(addr: &Option<String>) -> Result<Client, Error>{
+async fn build_client(addr: &Option<String>) -> Result<Client, Error> {
     let resolved_addr = resolve_addr(addr)?;
 
     match resolved_addr {
         ResolvedBusAddr::Tcp(addr) => {
             Ok(t2_bus::transport::tcp::connect(addr.parse::<SocketAddr>()?).await?)
-        },
-        ResolvedBusAddr::Unix(addr) => {
-            Ok(t2_bus::transport::unix::connect(&addr).await?)
         }
+        ResolvedBusAddr::Unix(addr) => Ok(t2_bus::transport::unix::connect(&addr).await?),
     }
 }
 
-fn resolve_addr(addr: &Option<String>) -> Result<ResolvedBusAddr, Error>{
-    match addr{
+fn resolve_addr(addr: &Option<String>) -> Result<ResolvedBusAddr, Error> {
+    match addr {
         Some(addr) => {
-            let matches = regex::Regex::new(BUS_ADDR_RGX).unwrap().captures(addr).unwrap();
+            let matches = regex::Regex::new(BUS_ADDR_RGX)
+                .unwrap()
+                .captures(addr)
+                .unwrap();
             let typ = matches.get(1).unwrap().as_str();
             let addr = matches.get(2).unwrap().as_str();
-            match typ{
+            match typ {
                 "tcp" => Ok(ResolvedBusAddr::Tcp(addr.to_string())),
                 "unix" => Ok(ResolvedBusAddr::Unix(PathBuf::from(addr))),
                 "name" => {
                     let config = parse_config()?;
-                    let addr = config.into_iter().find(|(name, _)| name == addr).ok_or(Error(format!("Name is not registered: {addr}")))?;
+                    let addr = config
+                        .into_iter()
+                        .find(|(name, _)| name == addr)
+                        .ok_or(Error(format!("Name is not registered: {addr}")))?;
                     Ok(addr.1)
-                },
-                _ => Err(Error("Invalid address type".into()))
+                }
+                _ => Err(Error("Invalid address type".into())),
             }
-        },
+        }
         None => {
             let mut config = parse_config()?;
             if config.is_empty() {
@@ -317,7 +334,7 @@ fn resolve_addr(addr: &Option<String>) -> Result<ResolvedBusAddr, Error>{
     }
 }
 
-fn parse_config() -> Result<Vec<(String, ResolvedBusAddr)>, Error>{
+fn parse_config() -> Result<Vec<(String, ResolvedBusAddr)>, Error> {
     let home = match std::env::var("HOME") {
         Ok(home) => home,
         Err(_) => return Ok(Vec::new()),
@@ -327,20 +344,20 @@ fn parse_config() -> Result<Vec<(String, ResolvedBusAddr)>, Error>{
     if !path.exists() {
         return Ok(Vec::new());
     }
-    
+
     let config = std::fs::read_to_string(path).unwrap();
-    
-    let addrs= regex::Regex::new(BUS_ADDR_CONFIG_RGX)
+
+    let addrs = regex::Regex::new(BUS_ADDR_CONFIG_RGX)
         .unwrap()
         .captures_iter(&config)
         .map(|m| {
             let name = m.get(1).unwrap().as_str();
             let addr = m.get(3).unwrap().as_str();
             let addr_type = m.get(2).unwrap().as_str();
-            let addr = match addr_type{
+            let addr = match addr_type {
                 "tcp" => ResolvedBusAddr::Tcp(addr.to_string()),
                 "unix" => ResolvedBusAddr::Unix(PathBuf::from(addr)),
-                _ => panic!()
+                _ => panic!(),
             };
             (name.to_string(), addr)
         })
@@ -352,7 +369,7 @@ fn parse_config() -> Result<Vec<(String, ResolvedBusAddr)>, Error>{
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct F32Protocol(f32);
 
-impl PublishProtocol for F32Protocol{
+impl PublishProtocol for F32Protocol {
     fn prefix() -> &'static str {
         "f32"
     }
@@ -361,7 +378,7 @@ impl PublishProtocol for F32Protocol{
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct StringProtocol(String);
 
-impl PublishProtocol for StringProtocol{
+impl PublishProtocol for StringProtocol {
     fn prefix() -> &'static str {
         "string"
     }

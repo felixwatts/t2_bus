@@ -63,9 +63,9 @@ impl Drop for SubscriptionInto {
     }
 }
 
-/// Represents a subscription to requests on a protocol `T` and topic. Returned by `Client::serve`. 
+/// Represents a subscription to requests on a protocol `T` and topic. Returned by `Client::serve`.
 ///
-/// While you hold this subscription you are expected to process incoming requests and respond promptly using 
+/// While you hold this subscription you are expected to process incoming requests and respond promptly using
 /// `Client::respond`. Drop the `RequestSubscription` object to stop serving.
 pub struct RequestSubscription<T> {
     receiver: UnboundedReceiver<(String, MsgId, T)>,
@@ -86,7 +86,7 @@ impl<T> RequestSubscription<T> {
         }
     }
 
-    /// Receive the next request. Returns `(request_topic, request_id, request_message)`. 
+    /// Receive the next request. Returns `(request_topic, request_id, request_message)`.
     /// After processing the request you should call `Client::respond` with the `request_id` to send a response
     /// to the requestor. Returns `None` if the feed ends.
     pub async fn recv(&mut self) -> Option<(String, MsgId, T)> {
