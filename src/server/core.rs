@@ -6,7 +6,7 @@ use crate::protocol::*;
 use crate::stopper::BasicStopper;
 use crate::topic::*;
 use crate::err::*;
-use log::{debug, info, trace, warn};
+use log::{debug, info, log_enabled, trace, warn, Level};
 use std::collections::HashMap;
 use tokio::time::Duration;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
@@ -145,8 +145,9 @@ impl Core {
     }
 
     fn process_msg(&mut self, client_id: u32, msg: Msg<ProtocolClient>) -> BusResult<bool> {
-        let log_msg = crate::debug::client_msg_to_string(&msg);
-        trace!("Client #{client_id}: {log_msg}");
+        if log_enabled!(Level::Trace) {
+            trace!("Client #{client_id}: {}", crate::debug::client_msg_to_string(&msg));
+        }
 
         let stop = matches!(msg.content, ProtocolClient::Stop);
 
@@ -301,8 +302,9 @@ impl Core {
     fn deliver(&mut self, client_id: ClientId, payload: ProtocolServer) -> BusResult<MsgId> {
         let msg = self.msg(payload);
 
-        let log_msg = crate::debug::server_msg_to_string(&msg);
-        trace!("Client #{client_id}: {log_msg}");
+        if log_enabled!(Level::Trace) {
+            trace!("Client #{client_id}: {}", crate::debug::server_msg_to_string(&msg));
+        }
 
         let client_opt = self.protocol_server_senders.get_mut(&client_id);
         match client_opt {

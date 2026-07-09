@@ -3,7 +3,7 @@ use crate::topic::*;
 use crate::{directory::Directory, transport::Transport};
 
 use crate::err::*;
-use log::{debug, trace};
+use log::{debug, log_enabled, trace, Level};
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -142,8 +142,9 @@ where
     async fn send(&mut self, task: Task) -> BusResult<()> {
         let msg = self.before_send(task)?;
 
-        let log_msg = crate::debug::client_msg_to_string(&msg);
-        trace!("{}", log_msg);
+        if log_enabled!(Level::Trace) {
+            trace!("{}", crate::debug::client_msg_to_string(&msg));
+        }
 
         self.transport.send(msg).await?;
         Ok(())
@@ -229,8 +230,9 @@ where
     }
 
     async fn after_receive(&mut self, msg: Msg<ProtocolServer>) -> BusResult<()> {
-        let log_msg = crate::debug::server_msg_to_string(&msg);
-        trace!("{}", log_msg);
+        if log_enabled!(Level::Trace) {
+            trace!("{}", crate::debug::server_msg_to_string(&msg));
+        }
 
         match msg.content {
             ProtocolServer::Ack(payload) => {
