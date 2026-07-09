@@ -6,6 +6,7 @@ use crate::protocol::*;
 use crate::stopper::BasicStopper;
 use crate::topic::*;
 use crate::err::*;
+use log::{debug, info, trace, warn};
 use std::collections::HashMap;
 use tokio::time::Duration;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
@@ -55,13 +56,11 @@ impl Core {
     pub fn spawn(mut self) -> BusResult<BasicStopper> {
         let (stop_sender, stop_receiver) = tokio::sync::oneshot::channel();
         let join_handle = tokio::spawn(async move {
-            #[cfg(debug_assertions)]
-            println!("[B] Bus server started");
+            debug!("Bus server started");
 
             let result = self.run(stop_receiver).await;
 
-            #[cfg(debug_assertions)]
-            println!("[B] Bus server stopped: {result:?}");
+            debug!("Bus server stopped: {result:?}");
 
             result
         });
@@ -123,14 +122,14 @@ impl Core {
             ClientStub::new(client_id, transport, self.task_sender.clone())?;
 
         tokio::spawn(async move {
-            println!("[B] Client #{client_id} connected");
+            info!("Client #{client_id} connected");
 
             match client.serve().await {
                 Ok(_) | Err(BusError::ChannelClosed) => {}
-                Err(e) => println!("[B] Client #{client_id}: Error: {e:?}")
+                Err(e) => warn!("Client #{client_id} error: {e:?}")
             }
 
-            println!("[B] Client #{client_id} disconnected");
+            info!("Client #{client_id} disconnected");
         });
 
         self.protocol_server_senders
@@ -146,11 +145,8 @@ impl Core {
     }
 
     fn process_msg(&mut self, client_id: u32, msg: Msg<ProtocolClient>) -> BusResult<bool> {
-        #[cfg(debug_assertions)]
-        {
-            let log_msg = crate::debug::client_msg_to_string(&msg);
-            println!("[B] <-- [{}] {}", client_id, &log_msg);
-        }
+        let log_msg = crate::debug::client_msg_to_string(&msg);
+        trace!("Client #{client_id}: {log_msg}");
 
         let stop = matches!(msg.content, ProtocolClient::Stop);
 
@@ -305,11 +301,8 @@ impl Core {
     fn deliver(&mut self, client_id: ClientId, payload: ProtocolServer) -> BusResult<MsgId> {
         let msg = self.msg(payload);
 
-        #[cfg(debug_assertions)]
-        {
-            let log_msg = crate::debug::server_msg_to_string(&msg);
-            println!("[B] --> [{}] {}", client_id, &log_msg);
-        }
+        let log_msg = crate::debug::server_msg_to_string(&msg);
+        trace!("Client #{client_id}: {log_msg}");
 
         let client_opt = self.protocol_server_senders.get_mut(&client_id);
         match client_opt {
@@ -322,8 +315,7 @@ impl Core {
                         // client has disconnected, cleanup
                         self.deregister_client(client_id)?;
 
-                        #[cfg(debug_assertions)]
-                        println!("Client #{} message delivery failed: {}", client_id, &e);
+                        warn!("Client #{client_id} message delivery failed: {e}");
 
                         Err(BusError::DeliveryFailed(client_id, e.to_string()))
                     }

@@ -3,6 +3,7 @@ use crate::topic::*;
 use crate::{directory::Directory, transport::Transport};
 
 use crate::err::*;
+use log::{debug, trace};
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -96,13 +97,11 @@ where
         };
 
         let handle = tokio::spawn(async move { 
-            #[cfg(debug_assertions)]
-            println!("[C] Bus client started");
+            debug!("Bus client started");
 
             let result = core.main_loop().await ;
 
-            #[cfg(debug_assertions)]
-            println!("[C] Bus client stopped: {result:?}");
+            debug!("Bus client stopped: {result:?}");
 
             result
         });
@@ -143,11 +142,8 @@ where
     async fn send(&mut self, task: Task) -> BusResult<()> {
         let msg = self.before_send(task)?;
 
-        #[cfg(debug_assertions)]
-        {
-            let log_msg = crate::debug::client_msg_to_string(&msg);
-            println!("[C] --> [B] {}", &log_msg);
-        }
+        let log_msg = crate::debug::client_msg_to_string(&msg);
+        trace!("{}", log_msg);
 
         self.transport.send(msg).await?;
         Ok(())
@@ -233,11 +229,8 @@ where
     }
 
     async fn after_receive(&mut self, msg: Msg<ProtocolServer>) -> BusResult<()> {
-        #[cfg(debug_assertions)]
-        {
-            let log_msg = crate::debug::server_msg_to_string(&msg);
-            println!("[C] <-- [B] {}", &log_msg);
-        }
+        let log_msg = crate::debug::server_msg_to_string(&msg);
+        trace!("{}", log_msg);
 
         match msg.content {
             ProtocolServer::Ack(payload) => {

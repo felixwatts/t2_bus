@@ -156,8 +156,13 @@ impl Display for Error{
 
 #[tokio::main]
 async fn main() {
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("t2_bus=info")
+    ).init();
+
     if let Err(e) = run().await {
-        println!("{}", &e.to_string());
+        log::error!("{e}");
+        std::process::exit(1);
     }
 }
 

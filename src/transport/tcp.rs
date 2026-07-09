@@ -1,3 +1,4 @@
+use log::info;
 use tokio::net::{lookup_host, ToSocketAddrs};
 use crate::client::Client;
 use crate::server::listen::listen_and_serve;
@@ -50,7 +51,7 @@ impl TcpListener{
 impl Listener for TcpListener{
     async fn accept(&mut self) -> BusResult<impl Transport<ProtocolServer, ProtocolClient>> {
         let (socket, addr) = self.0.accept().await?;
-        println!("[B] Accepted connection from {addr}");
+        info!("Accepted connection from {addr}");
         let transport = tokio_util::codec::Framed::new(socket, CborCodec::new());
         Ok(transport)
     }

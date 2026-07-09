@@ -10,7 +10,6 @@ pub(crate) mod topic;
 pub(crate) mod protocol;
 pub(crate) mod err;
 
-#[cfg(debug_assertions)]
 mod debug;
 mod stopper;
 
