@@ -3,6 +3,7 @@ use crate::topic::*;
 use crate::{directory::Directory, transport::Transport};
 
 use crate::err::*;
+use log::{debug, log_enabled, trace, Level};
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -59,7 +60,7 @@ pub(crate) enum Task {
     Unsrv(TaskUnsrv),
     Stop,
     StopBus(TaskStopBus),
-    KeepAlive
+    KeepAlive,
 }
 
 pub(crate) struct ClientCore<TTransport>
@@ -95,14 +96,12 @@ where
             callbacks_req: HashMap::new(),
         };
 
-        let handle = tokio::spawn(async move { 
-            #[cfg(debug_assertions)]
-            println!("[C] Bus client started");
+        let handle = tokio::spawn(async move {
+            debug!("[C] Bus client started");
 
-            let result = core.main_loop().await ;
+            let result = core.main_loop().await;
 
-            #[cfg(debug_assertions)]
-            println!("[C] Bus client stopped: {result:?}");
+            debug!("[C] Bus client stopped: {result:?}");
 
             result
         });
@@ -111,7 +110,8 @@ where
     }
 
     async fn main_loop(&mut self) -> BusResult<()> {
-        let mut keep_alive_interval = tokio::time::interval(Duration::from_secs(KEEP_ALIVE_INTERVAL_S));
+        let mut keep_alive_interval =
+            tokio::time::interval(Duration::from_secs(KEEP_ALIVE_INTERVAL_S));
         loop {
             tokio::select! {
                 // message from server
@@ -143,10 +143,8 @@ where
     async fn send(&mut self, task: Task) -> BusResult<()> {
         let msg = self.before_send(task)?;
 
-        #[cfg(debug_assertions)]
-        {
-            let log_msg = crate::debug::client_msg_to_string(&msg);
-            println!("[C] --> [B] {}", &log_msg);
+        if log_enabled!(Level::Trace) {
+            trace!("[C] --> [B] {}", crate::debug::client_msg_to_string(&msg));
         }
 
         self.transport.send(msg).await?;
@@ -220,23 +218,19 @@ where
                     id,
                     content: ProtocolClient::Stop,
                 }
-            },
-            Task::KeepAlive => {
-                Msg {
-                    id,
-                    content: ProtocolClient::KeepAlive,
-                }
             }
+            Task::KeepAlive => Msg {
+                id,
+                content: ProtocolClient::KeepAlive,
+            },
         };
 
         Ok(msg)
     }
 
     async fn after_receive(&mut self, msg: Msg<ProtocolServer>) -> BusResult<()> {
-        #[cfg(debug_assertions)]
-        {
-            let log_msg = crate::debug::server_msg_to_string(&msg);
-            println!("[C] <-- [B] {}", &log_msg);
+        if log_enabled!(Level::Trace) {
+            trace!("[C] <-- [B] {}", crate::debug::server_msg_to_string(&msg));
         }
 
         match msg.content {

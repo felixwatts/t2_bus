@@ -6,7 +6,7 @@ use t2_bus::prelude::*;
 struct HelloProtocol(String);
 
 // Specify that this is a pub/sub protocol
-impl PublishProtocol for HelloProtocol{
+impl PublishProtocol for HelloProtocol {
     // Define a prefix to identify this protocol. This should be unique within all the protocols on your bus.
     fn prefix() -> &'static str {
         "hello"
@@ -16,7 +16,7 @@ impl PublishProtocol for HelloProtocol{
 #[tokio::main]
 async fn main() -> BusResult<()> {
     // Start a bus server using the in-process memory transport
-    let(stopper, connector) = t2_bus::transport::memory::serve()?;
+    let (stopper, connector) = t2_bus::transport::memory::serve()?;
 
     // Create and connect two clients
     let publisher = t2_bus::transport::memory::connect(&connector)?;
@@ -26,7 +26,9 @@ async fn main() -> BusResult<()> {
     let mut subscription = subscriber.subscribe::<HelloProtocol>("alice").await?;
 
     // Publisher publishes a HelloProtocol message on topic 'alice'
-    publisher.publish("alice", &HelloProtocol("Hello Alice".to_string())).await?;
+    publisher
+        .publish("alice", &HelloProtocol("Hello Alice".to_string()))
+        .await?;
 
     // Subscriber receives published message
     let (topic, message) = subscription.recv().await.unwrap();

@@ -1,5 +1,5 @@
-use crate::topic::*;
 use crate::err::*;
+use crate::topic::*;
 use std::collections::{HashMap, HashSet};
 
 /// The `Directory` is responsible for topic matching. It stores the `id`s of subscribed and serving clients
@@ -314,7 +314,7 @@ fn test_ownership_no_wildcard() {
 fn _test_ownership_no_wildcard(topic_str: &str) {
     let mut subject = Directory::new();
     let topic = parse_topic(topic_str).unwrap();
-    subject.claim(0, &topic).unwrap_err();    
+    subject.claim(0, &topic).unwrap_err();
     assert!(subject.get_owner(&topic).is_none());
 }
 

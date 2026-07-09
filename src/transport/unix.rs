@@ -1,5 +1,9 @@
 use crate::{
-    client::Client, err::BusResult, prelude::Stopper, protocol::{ProtocolClient, ProtocolServer}, server::listen::{listen_and_serve, Listener}
+    client::Client,
+    err::BusResult,
+    prelude::Stopper,
+    protocol::{ProtocolClient, ProtocolServer},
+    server::listen::{listen_and_serve, Listener},
 };
 use std::path::PathBuf;
 use tokio::net::UnixStream;
@@ -24,9 +28,7 @@ pub fn serve(addr: &PathBuf) -> BusResult<impl Stopper> {
     listen_and_serve(listener)
 }
 
-pub async fn connect(
-    addr: &PathBuf,
-) -> BusResult<Client> {
+pub async fn connect(addr: &PathBuf) -> BusResult<Client> {
     let socket = UnixStream::connect(addr).await?;
     let transport = tokio_util::codec::Framed::new(socket, CborCodec::new());
     let client = Client::new(transport)?;
@@ -35,17 +37,15 @@ pub async fn connect(
 
 pub(crate) struct UnixListener(tokio::net::UnixListener);
 
-impl UnixListener{
-    pub(crate) fn new(addr: &PathBuf) -> BusResult<Self>{
+impl UnixListener {
+    pub(crate) fn new(addr: &PathBuf) -> BusResult<Self> {
         let _ = std::fs::remove_file(addr);
         let listener = tokio::net::UnixListener::bind(addr)?;
-        Ok(
-            Self(listener)
-        )
+        Ok(Self(listener))
     }
 }
 
-impl Listener for UnixListener{
+impl Listener for UnixListener {
     async fn accept(&mut self) -> BusResult<impl Transport<ProtocolServer, ProtocolClient>> {
         let (socket, _) = self.0.accept().await?;
         let transport = tokio_util::codec::Framed::new(socket, CborCodec::new());

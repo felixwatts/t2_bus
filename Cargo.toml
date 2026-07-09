@@ -1,6 +1,6 @@
 [package]
 name = "t2_bus"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Felix Watts <felixwatts@gmail.com>"]
 edition = "2018"
 keywords = ["message", "bus", "pubsub", "reqrsp", "microservice"]
@@ -30,6 +30,8 @@ tokio-rustls = { version = "0.26.2", optional = true }
 rustls-pemfile = { version = "2.2.0", optional = true }
 clap = { version = "4.5.40", features = ["derive"] }
 hex = "0.4.3"
+log = "0.4"
+env_logger = "0.11"
 
 [dev-dependencies]
 uuid = { version = "1.17.0", features = ["v4"] }

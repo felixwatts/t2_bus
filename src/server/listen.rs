@@ -1,11 +1,18 @@
 use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
 
-use crate::{stopper::{BasicStopper, MultiStopper}, transport::Transport, err::BusResult};
+use crate::{
+    err::BusResult,
+    stopper::{BasicStopper, MultiStopper},
+    transport::Transport,
+};
 
 use super::{core::Core, ProtocolClient, ProtocolServer, Task};
 
-pub (crate) trait Listener: 'static + Send {
-    fn accept(&mut self) -> impl std::future::Future<Output = BusResult<impl Transport<ProtocolServer, ProtocolClient>>> + std::marker::Send;
+pub(crate) trait Listener: 'static + Send {
+    fn accept(
+        &mut self,
+    ) -> impl std::future::Future<Output = BusResult<impl Transport<ProtocolServer, ProtocolClient>>>
+           + std::marker::Send;
 }
 
 pub(crate) fn listen_and_serve(listener: impl Listener) -> BusResult<MultiStopper> {

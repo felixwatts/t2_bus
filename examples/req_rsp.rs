@@ -9,7 +9,7 @@ struct HelloRequest(String);
 struct HelloResponse(String);
 
 // Specify that this is a req/rsp protocol
-impl RequestProtocol for HelloRequest{
+impl RequestProtocol for HelloRequest {
     type Rsp = HelloResponse;
     // Define a prefix to identify this protocol. This should be unique within all the protocols on your bus.
     fn prefix() -> &'static str {
@@ -20,7 +20,7 @@ impl RequestProtocol for HelloRequest{
 #[tokio::main]
 async fn main() -> BusResult<()> {
     // Start a bus server using the in-process memory transport
-    let(_stopper,  connector) = t2_bus::transport::memory::serve()?;
+    let (_stopper, connector) = t2_bus::transport::memory::serve()?;
 
     // Create and connect two clients
     let requester = t2_bus::transport::memory::connect(&connector)?;
@@ -33,12 +33,16 @@ async fn main() -> BusResult<()> {
         // Service provider receives request
         let (_topic, request_id, request) = request_subscription.recv().await.unwrap();
         // Service provider sends response
-        responder.respond::<HelloRequest>(request_id, &HelloResponse(format!("Hello {}", &request.0))).await?;
+        responder
+            .respond::<HelloRequest>(request_id, &HelloResponse(format!("Hello {}", &request.0)))
+            .await?;
         BusResult::Ok(())
     });
 
     // Requester sends a HelloRequest request on topic 'alice'
-    let response = requester.request("", &HelloRequest("Alice".to_string())).await?;
+    let response = requester
+        .request("", &HelloRequest("Alice".to_string()))
+        .await?;
 
     assert_eq!(response.0, "Hello Alice".to_string());
 

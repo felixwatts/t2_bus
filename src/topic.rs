@@ -43,7 +43,9 @@ fn test_rgx_topic() {
 
 pub(crate) fn parse_topic(topic_str: &str) -> BusResult<Vec<&str>> {
     if !RGX_TOPIC.is_match(topic_str) {
-        return Err(BusError::InvalidTopicString(format!("Invalid topic string: {topic_str}")));
+        return Err(BusError::InvalidTopicString(format!(
+            "Invalid topic string: {topic_str}"
+        )));
     }
 
     Ok(topic_str.split('/').collect::<Vec<&str>>())

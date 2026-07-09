@@ -1,8 +1,12 @@
+use crate::{
+    client::Client,
+    err::*,
+    prelude::Stopper,
+    protocol::{Msg, ProtocolClient, ProtocolServer},
+    server::listen::{listen_and_serve, Listener},
+};
 use futures::{Sink, Stream};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use crate::{
-    client::Client, err::*, prelude::Stopper, protocol::{Msg, ProtocolClient, ProtocolServer}, server::listen::{listen_and_serve, Listener}
-};
 
 use super::Transport;
 
@@ -20,51 +24,47 @@ use super::Transport;
 /// #     Ok(())
 /// # }
 /// ```
-pub fn serve() -> BusResult<(impl Stopper, MemoryConnector)>{
+pub fn serve() -> BusResult<(impl Stopper, MemoryConnector)> {
     let (listener, connector) = MemoryListener::new();
     let stopper = listen_and_serve(listener)?;
     Ok((stopper, connector))
 }
 
 /// Create a new bus client connected an in-process bus using the specified memory transport listener
-pub fn connect(
-    connector: &MemoryConnector,
-) -> BusResult<Client> {
+pub fn connect(connector: &MemoryConnector) -> BusResult<Client> {
     let transport = connector.connect()?;
     Client::new(transport)
 }
 
-pub(crate) struct MemoryListener {    
+pub(crate) struct MemoryListener {
     accept_receiver: UnboundedReceiver<MemoryTransport<ProtocolServer, ProtocolClient>>,
 }
 
-impl Listener for MemoryListener{
+impl Listener for MemoryListener {
     async fn accept(&mut self) -> BusResult<impl Transport<ProtocolServer, ProtocolClient>> {
         let client = self.accept_receiver.recv().await;
-        match client{
+        match client {
             Some(client) => Ok(client),
-            None => Err(BusError::ChannelClosed)
+            None => Err(BusError::ChannelClosed),
         }
     }
 }
 
 impl MemoryListener {
-    pub(crate) fn new() -> (Self, MemoryConnector){
+    pub(crate) fn new() -> (Self, MemoryConnector) {
         let (accept_sender, accept_receiver) = tokio::sync::mpsc::unbounded_channel();
         let listener = Self { accept_receiver };
-        let connector = MemoryConnector{ accept_sender };
+        let connector = MemoryConnector { accept_sender };
         (listener, connector)
     }
-    
-
 }
 
 #[derive(Clone)]
-pub struct MemoryConnector{
+pub struct MemoryConnector {
     accept_sender: UnboundedSender<MemoryTransport<ProtocolServer, ProtocolClient>>,
 }
 
-impl MemoryConnector{
+impl MemoryConnector {
     pub fn connect(&self) -> BusResult<MemoryTransport<ProtocolClient, ProtocolServer>> {
         let (client_sender, server_receiver) = tokio::sync::mpsc::unbounded_channel();
         let (server_sender, client_receiver) = tokio::sync::mpsc::unbounded_channel();

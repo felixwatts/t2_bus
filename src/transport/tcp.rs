@@ -1,8 +1,14 @@
-use tokio::net::{lookup_host, ToSocketAddrs};
 use crate::client::Client;
 use crate::server::listen::listen_and_serve;
 use crate::stopper::MultiStopper;
-use crate::{protocol::{ProtocolClient, ProtocolServer}, server::listen::Listener, err::BusResult, transport::CborCodec};
+use crate::{
+    err::BusResult,
+    protocol::{ProtocolClient, ProtocolServer},
+    server::listen::Listener,
+    transport::CborCodec,
+};
+use log::info;
+use tokio::net::{lookup_host, ToSocketAddrs};
 
 use super::{BusError, Transport};
 
@@ -24,12 +30,13 @@ pub async fn serve(addr: impl ToSocketAddrs) -> BusResult<MultiStopper> {
     listen_and_serve(listener)
 }
 
-pub async fn connect (
-    addr: impl ToSocketAddrs,
-) -> BusResult<Client> {
+pub async fn connect(addr: impl ToSocketAddrs) -> BusResult<Client> {
     let socket = tokio::net::TcpSocket::new_v4()?;
     socket.set_keepalive(true)?;
-    let addr = lookup_host(addr).await?.next().ok_or(BusError::DnsLookupFailed)?;
+    let addr = lookup_host(addr)
+        .await?
+        .next()
+        .ok_or(BusError::DnsLookupFailed)?;
     let stream = socket.connect(addr).await?;
     let transport = tokio_util::codec::Framed::new(stream, CborCodec::new());
     let client = Client::new(transport)?;
@@ -38,19 +45,17 @@ pub async fn connect (
 
 pub(crate) struct TcpListener(tokio::net::TcpListener);
 
-impl TcpListener{
-    pub(crate) async fn new(addr: impl ToSocketAddrs) -> BusResult<Self>{
+impl TcpListener {
+    pub(crate) async fn new(addr: impl ToSocketAddrs) -> BusResult<Self> {
         let listener = tokio::net::TcpListener::bind(addr).await?;
-        Ok(
-            Self(listener)
-        )
+        Ok(Self(listener))
     }
 }
 
-impl Listener for TcpListener{
+impl Listener for TcpListener {
     async fn accept(&mut self) -> BusResult<impl Transport<ProtocolServer, ProtocolClient>> {
         let (socket, addr) = self.0.accept().await?;
-        println!("[B] Accepted connection from {addr}");
+        info!("[B] Accepted connection from {addr}");
         let transport = tokio_util::codec::Framed::new(socket, CborCodec::new());
         Ok(transport)
     }
