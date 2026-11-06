@@ -26,12 +26,12 @@ async fn main() -> BusResult<()> {
     let requester = t2_bus::transport::memory::connect(&connector)?;
     let responder = t2_bus::transport::memory::connect(&connector)?;
 
-    // Service provider begins to serve the `HelloRequest` protocol at topic ''
-    let mut request_subscription = responder.serve::<HelloRequest>("").await?;
+    // Service provider begins to serve the `HelloRequest` protocol at the root path
+    let mut request_subscription = responder.serve::<HelloRequest>(Path::root()).await?;
 
     tokio::spawn(async move {
         // Service provider receives request
-        let (_topic, request_id, request) = request_subscription.recv().await.unwrap();
+        let (_path, request_id, request) = request_subscription.recv().await.unwrap();
         // Service provider sends response
         responder
             .respond::<HelloRequest>(request_id, &HelloResponse(format!("Hello {}", &request.0)))
@@ -39,9 +39,9 @@ async fn main() -> BusResult<()> {
         BusResult::Ok(())
     });
 
-    // Requester sends a HelloRequest request on topic 'alice'
+    // Requester sends a HelloRequest request at the root path
     let response = requester
-        .request("", &HelloRequest("Alice".to_string()))
+        .request(Path::root(), &HelloRequest("Alice".to_string()))
         .await?;
 
     assert_eq!(response.0, "Hello Alice".to_string());

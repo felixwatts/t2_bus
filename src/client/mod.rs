@@ -4,9 +4,10 @@ pub mod subscription;
 
 use self::core::*;
 use self::subscription::*;
-use super::{topic::prefix_topic, transport::Transport};
+use super::transport::Transport;
 use crate::err::*;
 use crate::protocol::*;
+use crate::topic::{Path, Topic};
 
 use std::time::Duration;
 
@@ -60,24 +61,27 @@ impl Client {
         Ok(())
     }
 
-    /// Start serving the specified protocol and topic.
+    /// Start serving the protocol `TProtocol` at the given path.
     ///
-    /// Requests on this protocol and topic will be routed to you via the returned `RequestSubscription`.
+    /// Requests on this protocol and path will be routed to you via the returned `RequestSubscription`.
     /// Drop the `RequestSubscription` to stop serving.
-    /// Errors if the specified protocol and topic is already being served by someone else.
-    pub async fn serve<TProtocol>(&self, topic: &str) -> BusResult<RequestSubscription<TProtocol>>
+    /// Errors if the specified protocol and path is already being served by someone else.
+    pub async fn serve<TProtocol>(&self, path: Path) -> BusResult<RequestSubscription<TProtocol>>
     where
         TProtocol: RequestProtocol,
     {
-        let topic = prefix_topic(TProtocol::prefix(), topic);
+        let topic = Topic::new(TProtocol::prefix(), path)?;
 
         let (callback_ack_sender, mut callback_ack_receiver) = tokio::sync::oneshot::channel();
         let (callback_req_sender, mut callback_req_receiver) =
             tokio::sync::mpsc::unbounded_channel();
 
         let (typed_request_sender, typed_request_receiver) = unbounded_channel();
-        let subscription =
-            RequestSubscription::new(&topic, typed_request_receiver, self.task_sender.clone());
+        let subscription = RequestSubscription::new(
+            topic.clone(),
+            typed_request_receiver,
+            self.task_sender.clone(),
+        );
 
         let task = Task::Srv(TaskSrv {
             msg: SrvMsg { topic },
@@ -93,7 +97,8 @@ impl Client {
                 let data: Vec<u8> = msg_req.payload.into();
                 let req: TProtocol = crate::transport::cbor_codec::deser(&data[..]).unwrap();
 
-                let send_result = typed_request_sender.send((msg_req.topic, req_id, req));
+                let (_, path) = msg_req.topic.into_parts();
+                let send_result = typed_request_sender.send((path, req_id, req));
 
                 if send_result.is_err() {
                     return;
@@ -104,17 +109,13 @@ impl Client {
         Ok(subscription)
     }
 
-    /// Make a request to the given protocol and topic. Returns the response or an error if
-    /// no one is serving on the protocol and topic.
-    pub async fn request<TProtocol>(
-        &self,
-        topic: &str,
-        req: &TProtocol,
-    ) -> BusResult<TProtocol::Rsp>
+    /// Make a request to the protocol `TProtocol` at the given path. Returns the response or an error if
+    /// no one is serving on the protocol and path.
+    pub async fn request<TProtocol>(&self, path: Path, req: &TProtocol) -> BusResult<TProtocol::Rsp>
     where
         TProtocol: RequestProtocol,
     {
-        let topic = prefix_topic(TProtocol::prefix(), topic);
+        let topic = Topic::new(TProtocol::prefix(), path)?;
 
         let payload = crate::transport::cbor_codec::ser(req)?;
 
@@ -123,7 +124,7 @@ impl Client {
 
         let task = Task::Req(TaskReq {
             msg: ReqMsg {
-                topic: topic.clone(), // TODO
+                topic,
                 payload: payload.into(),
             },
             callback_ack: callback_ack_sender,
@@ -145,19 +146,15 @@ impl Client {
         }
     }
 
-    /// Similar to `request` but the topic must be qualified with the protocol prefix and both the request and response
+    /// Similar to `request` but takes a full `Topic` (protocol and path) and both the request and response
     /// payloads are `Vec<u8>`s that should be encoded according to the protocol.
-    pub async fn request_bytes(
-        &mut self,
-        topic_with_prefix: &str,
-        payload: Vec<u8>,
-    ) -> BusResult<Vec<u8>> {
+    pub async fn request_bytes(&mut self, topic: Topic, payload: Vec<u8>) -> BusResult<Vec<u8>> {
         let (callback_ack_sender, mut callback_ack_receiver) = tokio::sync::oneshot::channel();
         let (callback_rsp_sender, callback_rsp_receiver) = tokio::sync::oneshot::channel();
 
         let task = Task::Req(TaskReq {
             msg: ReqMsg {
-                topic: topic_with_prefix.to_string(),
+                topic,
                 payload: payload.into(),
             },
             callback_ack: callback_ack_sender,
@@ -182,19 +179,19 @@ impl Client {
         self._respond(request_id, RspMsgStatus::Ok, payload).await
     }
 
-    /// Subscribe to a given protocol and topic. Values published on the protocol and topic will be routed to you
-    /// via the returned `Subscription`. Drop the `Subscription` to unsubscribe.
+    /// Subscribe to the protocol `TProtocol` at paths matching the given path. Values published on the protocol and
+    /// matching paths will be routed to you, together with the path they were published at, via the returned
+    /// `Subscription`. Drop the `Subscription` to unsubscribe.
     pub async fn subscribe<TProtocol>(
         &self,
-        topic: &str,
-    ) -> BusResult<Subscription<(String, TProtocol)>>
+        path: Path,
+    ) -> BusResult<Subscription<(Path, TProtocol)>>
     where
         TProtocol: PublishProtocol,
     {
-        let (callback_pub_sender, callback_pub_receiver) =
-            unbounded_channel::<(String, TProtocol)>();
+        let (callback_pub_sender, callback_pub_receiver) = unbounded_channel::<(Path, TProtocol)>();
         let subscription_into = self
-            .subscribe_into::<TProtocol>(topic, callback_pub_sender)
+            .subscribe_into::<TProtocol>(path, callback_pub_sender)
             .await?;
         let subscription = Subscription::new(callback_pub_receiver, subscription_into);
         Ok(subscription)
@@ -205,13 +202,13 @@ impl Client {
     /// Returns a `SubscriptionInto` which can be dropped to unsubscribe.
     pub async fn subscribe_into<TProtocol>(
         &self,
-        topic: &str,
-        callback_sender: UnboundedSender<(String, TProtocol)>,
+        path: Path,
+        callback_sender: UnboundedSender<(Path, TProtocol)>,
     ) -> BusResult<SubscriptionInto>
     where
         TProtocol: PublishProtocol,
     {
-        let topic = prefix_topic(TProtocol::prefix(), topic);
+        let topic = Topic::new(TProtocol::prefix(), path)?;
 
         let (callback_ack_sender, mut callback_ack_receiver) = tokio::sync::oneshot::channel();
         let (callback_pub_sender, mut callback_pub_receiver) = unbounded_channel::<PubMsg>();
@@ -225,7 +222,8 @@ impl Client {
                     })
                     .unwrap();
 
-                let result = callback_sender.send((msg_pub.topic, msg));
+                let (_, path) = msg_pub.topic.into_parts();
+                let result = callback_sender.send((path, msg));
                 if result.is_err() {
                     return;
                 }
@@ -244,20 +242,17 @@ impl Client {
 
         expect_ack(&mut callback_ack_receiver).await?;
 
-        let subscription = SubscriptionInto::new(&topic, self.task_sender.clone());
+        let subscription = SubscriptionInto::new(topic, self.task_sender.clone());
 
         Ok(subscription)
     }
 
-    /// Similar to `subscribe` but the topic must be qualified with the protocol prefix and the received
+    /// Similar to `subscribe` but takes a full `Topic` (protocol and path) and the received
     /// payloads are `Vec<u8>`s that should be encoded according to the protocol. Useful when the protocol
-    /// is not known at compile time.
-    pub async fn subscribe_bytes(
-        &self,
-        topic_with_prefix: &str,
-    ) -> BusResult<Subscription<PubMsg>> {
+    /// is not known at compile time. The protocol may be the wildcard `*` to match all protocols.
+    pub async fn subscribe_bytes(&self, topic: Topic) -> BusResult<Subscription<PubMsg>> {
         let (sender, receiver) = unbounded_channel::<PubMsg>();
-        let sub_into = self.subscribe_bytes_into(topic_with_prefix, sender).await?;
+        let sub_into = self.subscribe_bytes_into(topic, sender).await?;
         let sub = Subscription::new(receiver, sub_into);
         Ok(sub)
     }
@@ -267,14 +262,14 @@ impl Client {
     /// Returns a `SubscriptionInto` which can be dropped to unsubscribe.
     pub async fn subscribe_bytes_into(
         &self,
-        topic_with_prefix: &str,
+        topic: Topic,
         sender: UnboundedSender<PubMsg>,
     ) -> BusResult<SubscriptionInto> {
         let (callback_ack_sender, mut callback_ack_receiver) = tokio::sync::oneshot::channel();
 
         let task = Task::Sub(TaskSub {
             msg: SubMsg {
-                topic: topic_with_prefix.into(),
+                topic: topic.clone(),
             },
             callback_ack: callback_ack_sender,
             callback_pub: sender,
@@ -284,37 +279,33 @@ impl Client {
 
         expect_ack(&mut callback_ack_receiver).await?;
 
-        let subscription = SubscriptionInto::new(topic_with_prefix, self.task_sender.clone());
+        let subscription = SubscriptionInto::new(topic, self.task_sender.clone());
 
         Ok(subscription)
     }
 
-    /// Publish the given message at the given topic. Returns the number of receiving clients.
-    pub async fn publish<TProtocol>(&self, topic: &str, msg: &TProtocol) -> BusResult<usize>
+    /// Publish the given message at the given path. Returns the number of receiving clients.
+    pub async fn publish<TProtocol>(&self, path: Path, msg: &TProtocol) -> BusResult<usize>
     where
         TProtocol: PublishProtocol,
     {
-        let topic = prefix_topic(TProtocol::prefix(), topic);
+        let topic = Topic::new(TProtocol::prefix(), path)?;
 
         let payload = crate::transport::cbor_codec::ser(msg)?;
 
-        let num_recipients = self.publish_bytes(&topic, payload).await?;
+        let num_recipients = self.publish_bytes(topic, payload).await?;
         Ok(num_recipients)
     }
 
-    /// Similar to `publish` but the topic must be qualified with the protocol prefix and the received
-    /// payloads are `Vec<u8>`s that should be encoded according to the protocol. Useful when the protocol
+    /// Similar to `publish` but takes a full `Topic` (protocol and path) and the
+    /// payload is a `Vec<u8>` that should be encoded according to the protocol. Useful when the protocol
     /// is not known at compile time.
-    pub async fn publish_bytes(
-        &self,
-        topic_with_prefix: &str,
-        payload: Vec<u8>,
-    ) -> BusResult<usize> {
+    pub async fn publish_bytes(&self, topic: Topic, payload: Vec<u8>) -> BusResult<usize> {
         let (callback_ack_sender, mut callback_ack_receiver) = tokio::sync::oneshot::channel();
 
         let task = Task::Pub(TaskPub {
             msg: PubMsg {
-                topic: topic_with_prefix.to_string(),
+                topic,
                 payload: payload.into(),
             },
             callback_ack: callback_ack_sender,

@@ -1,5 +1,4 @@
 use crate::protocol::*;
-use crate::topic::*;
 use crate::{directory::Directory, transport::Transport};
 
 use crate::err::*;
@@ -166,8 +165,7 @@ where
             Task::Sub(params) => {
                 self.callbacks_ack.insert(id, params.callback_ack);
                 self.callbacks_pub.insert(id, params.callback_pub);
-                self.subscriptions
-                    .subscribe(id, &parse_topic(&params.msg.topic)?);
+                self.subscriptions.subscribe(id, &params.msg.topic);
                 Msg {
                     id,
                     content: ProtocolClient::Sub(params.msg),
@@ -193,9 +191,9 @@ where
                 content: ProtocolClient::Unsub(params.msg),
             },
             Task::Unsrv(params) => {
-                let topic = parse_topic(&params.msg.topic)?;
-                let callback_id = self.subscriptions.get_owner(&topic).unwrap();
-                self.subscriptions.unclaim(callback_id, &topic)?;
+                let topic = &params.msg.topic;
+                let callback_id = self.subscriptions.get_owner(topic).unwrap();
+                self.subscriptions.unclaim(callback_id, topic)?;
                 Msg {
                     id,
                     content: ProtocolClient::Unsrv(params.msg),
@@ -204,8 +202,7 @@ where
             Task::Srv(params) => {
                 self.callbacks_ack.insert(id, params.callback_ack);
                 self.callbacks_req.insert(id, params.callback_req);
-                self.subscriptions
-                    .claim(id, &parse_topic(&params.msg.topic)?)?;
+                self.subscriptions.claim(id, &params.msg.topic)?;
                 Msg {
                     id,
                     content: ProtocolClient::Srv(params.msg),
@@ -245,9 +242,7 @@ where
                 let _ = callback.send(payload); // ignore result, client isn't obliged to wait for RSP and may have dropped the channel
             }
             ProtocolServer::Pub(payload) => {
-                let callback_ids = self
-                    .subscriptions
-                    .get_subscribers(&parse_topic(&payload.topic)?);
+                let callback_ids = self.subscriptions.get_subscribers(&payload.topic);
                 for callback_id in callback_ids {
                     // call the callback
                     let callback_result = self
@@ -278,8 +273,7 @@ where
                 }
             }
             ProtocolServer::Req(payload) => {
-                let callback_id_option =
-                    self.subscriptions.get_owner(&parse_topic(&payload.topic)?);
+                let callback_id_option = self.subscriptions.get_owner(&payload.topic);
                 match callback_id_option {
                     Some(callback_id) => {
                         let callback = self.callbacks_req.get_mut(&callback_id).unwrap();

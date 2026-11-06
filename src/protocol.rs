@@ -1,4 +1,5 @@
 use crate::err::{BusError, BusResult};
+use crate::topic::Topic;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -37,32 +38,32 @@ pub type MsgId = u32;
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 pub struct SubMsg {
-    pub topic: String,
+    pub topic: Topic,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 pub struct UnsubMsg {
-    pub topic: String,
+    pub topic: Topic,
 }
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 pub struct PubMsg {
-    pub topic: String,
+    pub topic: Topic,
     pub payload: Payload,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 pub struct SrvMsg {
-    pub topic: String,
+    pub topic: Topic,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq, Debug)]
 pub struct UnsrvMsg {
-    pub topic: String,
+    pub topic: Topic,
 }
 
 #[derive(Clone, Deserialize, Serialize, PartialEq)]
 pub struct ReqMsg {
-    pub topic: String,
+    pub topic: Topic,
     pub payload: Payload,
 }
 
