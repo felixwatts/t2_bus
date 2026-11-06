@@ -94,15 +94,16 @@ async fn main() -> BusResult<()> {
     let client_1 = memory_connector.connect().await?;
     let client_2 = memory_connector.connect().await?;
 
-    // Subscribe for all `HelloProtocol` type messages published on topics matching "alice"
-    let mut subscription = client_1.subscribe::<HelloProtocol>("alice").await?;
+    // Subscribe for all `HelloProtocol` type messages published at paths matching "alice"
+    let mut subscription = client_1.subscribe::<HelloProtocol>("alice".parse()?).await?;
 
-    // Publish a `HelloProtocol` type message to all subscribers for topics matching "alice"
-    client_2.publish("alice", &HelloProtocol("Hello Alice".to_string())).await?;
+    // Publish a `HelloProtocol` type message to all subscribers for paths matching "alice"
+    client_2.publish("alice".parse()?, &HelloProtocol("Hello Alice".to_string())).await?;
 
-    // Wait to receive a message on this subscription
-    let (topic, message) = subscription.recv().await.unwrap();
+    // Wait to receive a message on this subscription, along with the path it was published at
+    let (path, message) = subscription.recv().await.unwrap();
 
+    assert_eq!(path.as_str(), "alice");
     assert_eq!(message.0, "Hello Alice".to_string());
 
     // When the subscription object is dropped the subscription ends
@@ -113,13 +114,13 @@ async fn main() -> BusResult<()> {
 
 ### Request/Response
 
-Clients may begin to "serve" a topic. While serving a topic, requests on that protocol and topic will be routed exclusively 
+Clients may begin to "serve" a protocol at a path. While serving, requests on that protocol and path will be routed exclusively 
 to that client. The serving client should then produce a response which will be routed back to the origin of the request.
 
 At most one client may serve a given topic at a time. However, it _is_ allowed to publish/subscribe on a topic while that 
 topic is being served as the two systems do not interact.
 
-Topic wildcards (see below) are not supported for either serving or requesting.
+Wildcards (see below) are not supported for either serving or requesting.
 
 ```rust
 use t2_bus::prelude::*;
@@ -154,16 +155,16 @@ async fn main() -> BusResult<()> {
     let client_1 = memory_connector.connect().await?;
     let client_2 = memory_connector.connect().await?;
 
-    // A client begins to serve the `HelloProtocol` at topic ''
-    let mut request_subscription = client_1.serve::<HelloRequest>("").await?;
+    // A client begins to serve the `HelloProtocol` at the root path
+    let mut request_subscription = client_1.serve::<HelloRequest>(Path::root()).await?;
 
     tokio::spawn(async move {
-        // Another client sends a HelloProtocol request on topic '' and later receives a response
-        let response = client_2.request("", &HelloRequest("Alice".to_string())).await.unwrap();
+        // Another client sends a HelloProtocol request at the root path and later receives a response
+        let response = client_2.request(Path::root(), &HelloRequest("Alice".to_string())).await.unwrap();
     });
 
     // The serving client receives the request...
-    let (_topic, request_id, request) = request_subscription.recv().await.unwrap();
+    let (_path, request_id, request) = request_subscription.recv().await.unwrap();
         
     // ...and sends the response
     client_1.respond::<HelloRequest>(request_id, &HelloResponse(format!("Hello {}", &request.0))).await?;
@@ -172,9 +173,11 @@ async fn main() -> BusResult<()> {
 }
 ```
 
-## Topic Matching
+## Topics and Paths
 
-Messages are routed according to topics. A topic is a string similar in form to a file system path. Here are some examples:
+Messages are routed according to topics. A `Topic` consists of a protocol and a `Path`.
+
+A `Path` is a string similar in form to a file system path. Here are some examples:
 
 ```text
 price
@@ -184,11 +187,13 @@ price/*/eur
 price/**
 ```
 
-The topic is composed of "fragments" separated by `/`. Each fragment is either a word composed of `a-z` and `_` or the wildcard `*` or the double wildcard `**`. 
+The path is composed of "fragments" separated by `/`. Each fragment is either a word composed of `a-z`, `0-9` and `_` or the wildcard `*` or the double wildcard `**`. The empty path is the root path (`Path::root()`).
 
-Word fragments match identical word fragments. The wildcard `*` matches any fragment at the same position. The double wildcard `**` matches any fragment any number of times. 
+The string form of a `Topic` is `<protocol>:<path>`, for example `f32:price/eth/eur`, or `f32:` for the root path. The typed client methods (`subscribe`, `publish`, `serve`, `request`) take a `Path` and use the protocol of the message type; the `*_bytes` methods take a full `Topic`. In a `Topic` the protocol may be the wildcard `*` to match messages of any protocol, e.g. `*:**` matches everything.
 
-Wildcards are supported in both subscribe topics and publish topics. 
+Word fragments match identical word fragments. The wildcard `*` matches any fragment at the same position. The double wildcard `**` matches any number of fragments, including none, so `price/**` matches `price` as well as `price/eth/eur`. 
+
+Wildcards are supported in both subscribe paths and publish paths. 
 
 To illustrate topic matching, consider an example chat app. If we define that messages from a `user` in a `room` are published to the topic `<room>/<user>` then:
 

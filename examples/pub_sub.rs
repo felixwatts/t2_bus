@@ -22,18 +22,20 @@ async fn main() -> BusResult<()> {
     let publisher = t2_bus::transport::memory::connect(&connector)?;
     let subscriber = t2_bus::transport::memory::connect(&connector)?;
 
-    // Subscriber subscribes to `HelloProtocol` protocol and 'alice' topic
-    let mut subscription = subscriber.subscribe::<HelloProtocol>("alice").await?;
+    // Subscriber subscribes to `HelloProtocol` protocol at path 'alice'
+    let mut subscription = subscriber
+        .subscribe::<HelloProtocol>("alice".parse()?)
+        .await?;
 
-    // Publisher publishes a HelloProtocol message on topic 'alice'
+    // Publisher publishes a HelloProtocol message at path 'alice'
     publisher
-        .publish("alice", &HelloProtocol("Hello Alice".to_string()))
+        .publish("alice".parse()?, &HelloProtocol("Hello Alice".to_string()))
         .await?;
 
     // Subscriber receives published message
-    let (topic, message) = subscription.recv().await.unwrap();
+    let (path, message) = subscription.recv().await.unwrap();
 
-    assert_eq!(topic, "hello/alice".to_string());
+    assert_eq!(path.as_str(), "alice");
     assert_eq!(message.0, "Hello Alice".to_string());
 
     // When the `subscription` object is dropped the subscription ends

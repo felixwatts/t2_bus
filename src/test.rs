@@ -5,6 +5,7 @@ use crate::{
     prelude::ServerBuilder,
     protocol::KEEP_ALIVE_TIMEOUT_S,
     stopper::Stopper,
+    topic::{Path, Topic},
 };
 use futures::{stream::FuturesUnordered, StreamExt};
 use std::time::{Duration, Instant};
@@ -30,6 +31,14 @@ impl RequestProtocol for TestReq {
     fn prefix() -> &'static str {
         "test"
     }
+}
+
+fn p(path: &str) -> Path {
+    path.parse().unwrap()
+}
+
+fn t(topic: &str) -> Topic {
+    topic.parse().unwrap()
 }
 
 pub(crate) fn unique_addr() -> std::path::PathBuf {
@@ -69,15 +78,15 @@ async fn setup_local() -> (Client, Client, impl Stopper) {
 async fn test_tcp() {
     let (client_1, client_2, stopper) = setup_tcp().await;
 
-    let mut rx = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
+    let mut rx = client_1.subscribe::<TestPub>(p("a/b/c")).await.unwrap();
 
     client_2
-        .publish("a/b/c", &TestPub("d".into()))
+        .publish(p("a/b/c"), &TestPub("d".into()))
         .await
         .unwrap();
     let (topic, payload) = rx.recv().await.unwrap();
 
-    assert_eq!("test/a/b/c", &topic);
+    assert_eq!("a/b/c", topic.as_str());
     assert_eq!(&"d", &payload.0);
 
     stopper.stop().await.unwrap();
@@ -87,15 +96,15 @@ async fn test_tcp() {
 async fn test_subscribe_publish_local() {
     let (client_1, client_2, stopper) = setup_local().await;
 
-    let mut rx = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
+    let mut rx = client_1.subscribe::<TestPub>(p("a/b/c")).await.unwrap();
 
     client_2
-        .publish("a/b/c", &TestPub("d".into()))
+        .publish(p("a/b/c"), &TestPub("d".into()))
         .await
         .unwrap();
     let (topic, payload) = rx.recv().await.unwrap();
 
-    assert_eq!("test/a/b/c", &topic);
+    assert_eq!("a/b/c", topic.as_str());
     assert_eq!(&"d", &payload.0);
 
     stopper.stop().await.expect_err("Expect channel closed");
@@ -105,15 +114,15 @@ async fn test_subscribe_publish_local() {
 async fn test_subscribe_publish() {
     let (client_1, client_2, _stopper) = setup().await;
 
-    let mut rx = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
+    let mut rx = client_1.subscribe::<TestPub>(p("a/b/c")).await.unwrap();
 
     client_2
-        .publish("a/b/c", &TestPub("d".into()))
+        .publish(p("a/b/c"), &TestPub("d".into()))
         .await
         .unwrap();
     let (topic, payload) = rx.recv().await.unwrap();
 
-    assert_eq!("test/a/b/c", &topic);
+    assert_eq!("a/b/c", topic.as_str());
     assert_eq!("d", payload.0);
 }
 
@@ -121,12 +130,12 @@ async fn test_subscribe_publish() {
 async fn test_subscribe_publish_empty_topic() {
     let (client_1, client_2, _stopper) = setup().await;
 
-    let mut rx = client_1.subscribe::<TestPub>("").await.unwrap();
+    let mut rx = client_1.subscribe::<TestPub>(p("")).await.unwrap();
 
-    client_2.publish("", &TestPub("d".into())).await.unwrap();
+    client_2.publish(p(""), &TestPub("d".into())).await.unwrap();
     let (topic, payload) = rx.recv().await.unwrap();
 
-    assert_eq!("test", &topic);
+    assert!(topic.is_root());
     assert_eq!("d", payload.0);
 }
 
@@ -134,16 +143,16 @@ async fn test_subscribe_publish_empty_topic() {
 async fn test_subscription_stream() {
     let (client_1, client_2, stopper) = setup_local().await;
 
-    let mut subscription = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
+    let mut subscription = client_1.subscribe::<TestPub>(p("a/b/c")).await.unwrap();
 
     client_2
-        .publish("a/b/c", &TestPub("d".into()))
+        .publish(p("a/b/c"), &TestPub("d".into()))
         .await
         .unwrap();
 
     let (topic, payload) = subscription.next().await.unwrap();
 
-    assert_eq!("test/a/b/c", &topic);
+    assert_eq!("a/b/c", topic.as_str());
     assert_eq!("d", payload.0);
 
     stopper.stop().await.expect_err("Expect channel closed");
@@ -154,22 +163,22 @@ async fn test_unsubscribe() {
     let (client_1, client_2, _stopper) = setup().await;
 
     {
-        let _subscription = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
+        let _subscription = client_1.subscribe::<TestPub>(p("a/b/c")).await.unwrap();
         // receiver goes out of scope - unsubscribe
     }
 
     // new subscription to the topic
-    let mut subscription_2 = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
+    let mut subscription_2 = client_1.subscribe::<TestPub>(p("a/b/c")).await.unwrap();
 
     // client receives new value on topic
     client_2
-        .publish("a/b/c", &TestPub("e".into()))
+        .publish(p("a/b/c"), &TestPub("e".into()))
         .await
         .unwrap();
 
     // callback is called with correct value
     let (topic, payload) = subscription_2.recv().await.unwrap();
-    assert_eq!("test/a/b/c", &topic);
+    assert_eq!("a/b/c", topic.as_str());
     assert_eq!("e", payload.0);
 }
 
@@ -178,23 +187,23 @@ async fn test_unsubscribe_2() {
     let (client_1, client_2, _stopper) = setup().await;
 
     {
-        let _ = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
+        let _ = client_1.subscribe::<TestPub>(p("a/b/c")).await.unwrap();
         // receiver goes out of scope - unsubscribe
     }
 
     // new subscription to the topic
-    let mut rx = client_1.subscribe::<TestPub>("a/b/c").await.unwrap();
+    let mut rx = client_1.subscribe::<TestPub>(p("a/b/c")).await.unwrap();
 
     // client receives message on unsubscribed topic
     // cleanup of old subscription
     client_2
-        .publish("a/b/c", &TestPub("d".into()))
+        .publish(p("a/b/c"), &TestPub("d".into()))
         .await
         .unwrap();
 
     // callback of new subscription is called with correct value
     let (topic, payload) = rx.recv().await.unwrap();
-    assert_eq!("test/a/b/c", &topic);
+    assert_eq!("a/b/c", topic.as_str());
     assert_eq!("d", payload.0);
 }
 
@@ -202,12 +211,12 @@ async fn test_unsubscribe_2() {
 async fn test_request_response() {
     let (client_1, client_2, _stopper) = setup().await;
 
-    let mut rx = client_1.serve::<TestReq>("ping").await.unwrap();
+    let mut rx = client_1.serve::<TestReq>(p("ping")).await.unwrap();
 
     let ping_task = tokio::spawn(async move {
         let (topic, req_id, req) = rx.recv().await.unwrap();
 
-        assert_eq!("test/ping", &topic);
+        assert_eq!("ping", topic.as_str());
         assert_eq!("PING", req.0);
 
         client_1
@@ -217,7 +226,7 @@ async fn test_request_response() {
     });
 
     let rsp_payload = client_2
-        .request("ping", &TestReq("PING".into()))
+        .request(p("ping"), &TestReq("PING".into()))
         .await
         .unwrap();
 
@@ -230,12 +239,12 @@ async fn test_request_response() {
 async fn test_request_subscription_stream() {
     let (client_1, client_2, stopper) = setup_local().await;
 
-    let mut request_subscription = client_1.serve::<TestReq>("ping").await.unwrap();
+    let mut request_subscription = client_1.serve::<TestReq>(p("ping")).await.unwrap();
 
     let ping_task = tokio::spawn(async move {
         let (topic, req_id, req) = request_subscription.next().await.unwrap();
 
-        assert_eq!("test/ping", &topic);
+        assert_eq!("ping", topic.as_str());
         assert_eq!("PING", req.0);
 
         client_1
@@ -245,7 +254,7 @@ async fn test_request_subscription_stream() {
     });
 
     let rsp_payload = client_2
-        .request("ping", &TestReq("PING".into()))
+        .request(p("ping"), &TestReq("PING".into()))
         .await
         .unwrap();
 
@@ -261,17 +270,17 @@ async fn test_unserve() {
     let (client_1, client_2, _stopper) = setup().await;
 
     {
-        let _request_subscription = client_2.serve::<TestReq>("ping").await.unwrap();
+        let _request_subscription = client_2.serve::<TestReq>(p("ping")).await.unwrap();
         // request subscription goes out of scope, client stops serving the topic
     }
 
     // now another client can serve the topic
-    let mut request_subscription = client_1.serve::<TestReq>("ping").await.unwrap();
+    let mut request_subscription = client_1.serve::<TestReq>(p("ping")).await.unwrap();
 
     let ping_task = tokio::spawn(async move {
         let (topic, req_id, req) = request_subscription.recv().await.unwrap();
 
-        assert_eq!("test/ping", &topic);
+        assert_eq!("ping", topic.as_str());
         assert_eq!("PING", req.0);
 
         client_1
@@ -281,7 +290,7 @@ async fn test_unserve() {
     });
 
     let rsp_payload = client_2
-        .request("ping", &TestReq("PING".into()))
+        .request(p("ping"), &TestReq("PING".into()))
         .await
         .unwrap();
 
@@ -302,16 +311,16 @@ async fn stress_test_pub_sub() {
     let mut client_join_handles = FuturesUnordered::new();
 
     async fn run_client(client_id: i32) -> BusResult<i32> {
-        let topic = String::new();
+        let topic = Path::root();
 
         let client = crate::transport::unix::connect(&".test".into()).await?;
-        let mut sub = client.subscribe::<TestPub>(&topic).await?;
+        let mut sub = client.subscribe::<TestPub>(topic).await?;
 
         let a: JoinHandle<BusResult<()>> = tokio::spawn(async move {
-            let topic = String::new();
+            let topic = Path::root();
             for msg_id in 0..1u32 {
                 let msg = &TestPub(format!("{}:{}", client_id, msg_id));
-                client.publish(&topic, msg).await?;
+                client.publish(topic.clone(), msg).await?;
             }
             Ok(())
         });
@@ -356,14 +365,14 @@ async fn stress_test_pub_sub_memory() {
     let mut client_join_handles = FuturesUnordered::new();
 
     async fn run_client(client_id: i32, client: Client) -> BusResult<()> {
-        let topic = String::new();
-        let mut sub = client.subscribe::<TestPub>(&topic).await?;
+        let topic = Path::root();
+        let mut sub = client.subscribe::<TestPub>(topic).await?;
 
         let a: JoinHandle<BusResult<()>> = tokio::spawn(async move {
-            let topic = String::new();
+            let topic = Path::root();
             for msg_id in 0..100u32 {
                 let msg = &TestPub(format!("{}:{}", client_id, msg_id));
-                client.publish(&topic, msg).await?;
+                client.publish(topic.clone(), msg).await?;
             }
             Ok(())
         });
@@ -405,8 +414,8 @@ async fn test_compression() {
     let sent = vec![42u8; 10000];
     let (client_1, client_2, _stopper) = setup().await;
 
-    let mut sub = client_2.subscribe_bytes("topic").await.unwrap();
-    client_1.publish_bytes("topic", sent).await.unwrap();
+    let mut sub = client_2.subscribe_bytes(t("topic:")).await.unwrap();
+    client_1.publish_bytes(t("topic:"), sent).await.unwrap();
 
     let received: Vec<u8> = sub.recv().await.unwrap().payload.into();
     assert_eq!(received.len(), 10000);
@@ -419,12 +428,12 @@ async fn test_compression() {
 async fn test_respond_with_bad_request_id() {
     let (client_1, client_2, _stopper) = setup().await;
 
-    let mut rx = client_1.serve::<TestReq>("ping").await.unwrap();
+    let mut rx = client_1.serve::<TestReq>(p("ping")).await.unwrap();
 
     let ping_task = tokio::spawn(async move {
         let (topic, req_id, req) = rx.recv().await.unwrap();
 
-        assert_eq!("test/ping", &topic);
+        assert_eq!("ping", topic.as_str());
         assert_eq!("PING", req.0);
 
         let result = client_1
@@ -441,7 +450,7 @@ async fn test_respond_with_bad_request_id() {
 
     let _ = tokio::time::timeout(
         Duration::from_secs(3),
-        client_2.request("ping", &TestReq("PING".into())),
+        client_2.request(p("ping"), &TestReq("PING".into())),
     )
     .await;
 
@@ -469,20 +478,17 @@ async fn malformed_message_does_not_crash_server() {
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();
     let _ = socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
 
-    let mut sub = c1.subscribe::<TestPub>("a").await.unwrap();
+    let mut sub = c1.subscribe::<TestPub>(p("a")).await.unwrap();
 
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();
     let _ = socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
 
-    c2.publish("a", &TestPub("hello".into())).await.unwrap();
+    c2.publish(p("a"), &TestPub("hello".into())).await.unwrap();
 
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();
     let _ = socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
 
-    assert_eq!(
-        sub.recv().await.unwrap(),
-        ("test/a".into(), TestPub("hello".into()))
-    );
+    assert_eq!(sub.recv().await.unwrap(), (p("a"), TestPub("hello".into())));
 
     let mut socket = UnixStream::connect(addr.clone()).await.unwrap();
     let _ = socket.write(&[0, 0, 0, 1, 0]).await.unwrap();
@@ -507,13 +513,13 @@ async fn test_multi_transport() {
     let unix_client = crate::transport::unix::connect(&unix_addr).await.unwrap();
     let tcp_client = crate::transport::tcp::connect(tcp_addr).await.unwrap();
 
-    let mut memory_client_sub = memory_client.subscribe::<TestPub>("*").await.unwrap();
-    let mut unix_client_sub = unix_client.subscribe::<TestPub>("*").await.unwrap();
-    let mut tcp_client_sub = tcp_client.subscribe::<TestPub>("*").await.unwrap();
+    let mut memory_client_sub = memory_client.subscribe::<TestPub>(p("*")).await.unwrap();
+    let mut unix_client_sub = unix_client.subscribe::<TestPub>(p("*")).await.unwrap();
+    let mut tcp_client_sub = tcp_client.subscribe::<TestPub>(p("*")).await.unwrap();
 
     let memory_client_test_msg = TestPub("m".into());
     memory_client
-        .publish("m", &memory_client_test_msg)
+        .publish(p("m"), &memory_client_test_msg)
         .await
         .unwrap();
     assert_eq!(
@@ -531,7 +537,7 @@ async fn test_multi_transport() {
 
     let unix_client_test_msg = TestPub("u".into());
     unix_client
-        .publish("u", &unix_client_test_msg)
+        .publish(p("u"), &unix_client_test_msg)
         .await
         .unwrap();
     assert_eq!(
@@ -545,7 +551,10 @@ async fn test_multi_transport() {
     assert_eq!(unix_client_test_msg, tcp_client_sub.recv().await.unwrap().1);
 
     let tcp_client_test_msg = TestPub("t".into());
-    tcp_client.publish("t", &tcp_client_test_msg).await.unwrap();
+    tcp_client
+        .publish(p("t"), &tcp_client_test_msg)
+        .await
+        .unwrap();
     assert_eq!(
         tcp_client_test_msg,
         memory_client_sub.recv().await.unwrap().1
@@ -580,13 +589,13 @@ pub async fn test_dropping_server_stopper_stops_server() {
 
     let client = connector.unwrap().connect().await.unwrap();
 
-    let publish_result = client.publish("test", &TestPub("Test".into())).await;
+    let publish_result = client.publish(p("test"), &TestPub("Test".into())).await;
 
     assert!(matches!(publish_result, Ok(_)));
 
     drop(stopper);
 
-    let publish_result = client.publish("test", &TestPub("Test".into())).await;
+    let publish_result = client.publish(p("test"), &TestPub("Test".into())).await;
 
     assert!(matches!(
         publish_result,

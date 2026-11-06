@@ -5,7 +5,6 @@ use crate::directory::*;
 use crate::err::*;
 use crate::protocol::*;
 use crate::stopper::BasicStopper;
-use crate::topic::*;
 use log::{debug, info, log_enabled, trace, warn, Level};
 use std::collections::HashMap;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
@@ -43,8 +42,7 @@ impl Core {
             pending_responses: HashMap::new(),
         };
 
-        core.directory
-            .subscribe(0, &parse_topic("bus/kill").unwrap());
+        core.directory.subscribe(0, &"bus:kill".parse().unwrap());
 
         core
     }
@@ -198,22 +196,19 @@ impl Core {
     }
 
     fn serve(&mut self, client_id: u32, params: SrvMsg) -> BusResult<()> {
-        let topic = parse_topic(&params.topic)?;
-        self.directory.claim(client_id, &topic)?;
+        self.directory.claim(client_id, &params.topic)?;
 
         Ok(())
     }
 
     fn unserve(&mut self, client_id: u32, params: UnsrvMsg) -> BusResult<()> {
-        let topic = parse_topic(&params.topic)?;
-        self.directory.unclaim(client_id, &topic)?;
+        self.directory.unclaim(client_id, &params.topic)?;
 
         Ok(())
     }
 
     fn request(&mut self, client_id: u32, req_id: u32, params: ReqMsg) -> BusResult<()> {
-        let topic = parse_topic(&params.topic)?;
-        let server_id_opt = self.directory.get_owner(&topic);
+        let server_id_opt = self.directory.get_owner(&params.topic);
 
         match server_id_opt {
             Some(server_id) => {
@@ -241,7 +236,7 @@ impl Core {
 
                 Ok(())
             }
-            None => Err(BusError::ServiceNotFound(params.topic.clone())),
+            None => Err(BusError::ServiceNotFound(params.topic)),
         }
     }
 
@@ -276,22 +271,19 @@ impl Core {
     }
 
     fn subscribe(&mut self, client_id: u32, params: SubMsg) -> BusResult<()> {
-        let topic = parse_topic(&params.topic)?;
-        self.directory.subscribe(client_id, &topic);
+        self.directory.subscribe(client_id, &params.topic);
 
         Ok(())
     }
 
     fn unsubscribe(&mut self, client_id: u32, params: UnsubMsg) -> BusResult<()> {
-        let topic = parse_topic(&params.topic)?;
-        self.directory.unsubscribe(client_id, &topic)?;
+        self.directory.unsubscribe(client_id, &params.topic)?;
 
         Ok(())
     }
 
     fn publish(&mut self, params: PubMsg) -> BusResult<usize> {
-        let topic = parse_topic(&params.topic)?;
-        let subscriber_ids = self.directory.get_subscribers(&topic);
+        let subscriber_ids = self.directory.get_subscribers(&params.topic);
 
         let payload = ProtocolServer::Pub(PubMsg {
             topic: params.topic,

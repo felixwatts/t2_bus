@@ -24,7 +24,7 @@ pub enum BusError {
     ChannelClosed,
 
     #[error("Service not found: {0}")]
-    ServiceNotFound(String),
+    ServiceNotFound(crate::topic::Topic),
     #[error("Message delivery failed: Client #{0}: {1}")]
     DeliveryFailed(u32, String),
     #[error("Message delivery failed: Unknown client {0}")]

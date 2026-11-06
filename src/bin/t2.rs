@@ -69,16 +69,16 @@ enum Commands {
     },
     /// Connect to a bus server, subscribe to a topic and print received messages to the console
     Sub {
-        /// The topic to subscribe to
-        topic: String,
+        /// The topic to subscribe to in the form `<protocol>:<path>` e.g. `f32:a/b`. Use `*` as the protocol to match all protocols e.g. `*:**`
+        topic: Topic,
         /// The address of the bus server to connect to e.g. `tcp:127.0.0.1` or `unix:my_bus` or `name:bus`. If none is provided the default will be used
         #[arg(value_parser = validate_bus_addr)]
         addr: Option<String>,
     },
     /// Connect to a bus server and publish a StringProtocol message to a topic. This utility only supports `f32` and `String` type messages.
     Pub {
-        /// The topic to publish on. It must start with `f32/` or `string/` to denote which protocol it should be published on.
-        topic: String,
+        /// The topic to publish on in the form `<protocol>:<path>`. The protocol must be `f32` or `string` e.g. `f32:a/b`.
+        topic: Topic,
         /// The message to publish
         value: String,
         /// The address of the bus server to connect to e.g. `tcp:127.0.0.1` or `unix:my_bus` or `name:bus`. If none is provided the default will be used
@@ -87,8 +87,8 @@ enum Commands {
     },
     /// Connect to a bus, subscribe to the given topic and list the topics of any messages received
     Ls {
-        /// The topic to subscribe to
-        topic: String,
+        /// The topic to subscribe to in the form `<protocol>:<path>` e.g. `f32:a/b`. Use `*` as the protocol to match all protocols e.g. `*:**`
+        topic: Topic,
         /// The address of the bus server to connect to e.g. `tcp:127.0.0.1` or `unix:my_bus` or `name:bus`. If none is provided the default will be used
         #[arg(value_parser = validate_bus_addr)]
         addr: Option<String>,
@@ -121,13 +121,14 @@ impl Commands {
             Commands::Sub { .. } => Ok(()),
             Commands::Ls { .. } => Ok(()),
             Commands::Pub { topic, value, .. } => {
-                if !(topic.starts_with("f32/") || topic.starts_with("string/")) {
+                let protocol = topic.protocol();
+                if protocol != F32Protocol::prefix() && protocol != StringProtocol::prefix() {
                     return Err(Error("Unknown protocol".into()));
                 }
 
-                if topic.starts_with("f32/") && value.parse::<f32>().is_err() {
+                if protocol == F32Protocol::prefix() && value.parse::<f32>().is_err() {
                     return Err(Error(
-                        "When the topic starts with f32/ then the value must be a valid f32".into(),
+                        "When the protocol is f32 then the value must be a valid f32".into(),
                     ));
                 }
 
@@ -167,8 +168,10 @@ impl Display for Error {
 
 #[tokio::main]
 async fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("t2_bus=info"))
-        .init();
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("t2_bus=info,t2=info"),
+    )
+    .init();
 
     if let Err(e) = run().await {
         log::error!("{e}");
@@ -202,13 +205,14 @@ async fn run() -> Result<(), Error> {
         Commands::Sub { addr, topic } => {
             let client = build_client(&addr).await?;
 
-            let mut sub = client.subscribe_bytes(&topic).await?;
+            let mut sub = client.subscribe_bytes(topic).await?;
             while let Some(msg) = sub.recv().await {
-                let val_str = if msg.topic.starts_with("f32/") {
+                let protocol = msg.topic.protocol();
+                let val_str = if protocol == F32Protocol::prefix() {
                     let bytes: Vec<u8> = msg.payload.into();
                     let payload: F32Protocol = t2_bus::transport::cbor_codec::deser(&bytes[..])?;
                     payload.0.to_string()
-                } else if msg.topic.starts_with("string/") {
+                } else if protocol == StringProtocol::prefix() {
                     let bytes: Vec<u8> = msg.payload.into();
                     let payload: StringProtocol = t2_bus::transport::cbor_codec::deser(&bytes[..])?;
                     payload.0
@@ -224,7 +228,7 @@ async fn run() -> Result<(), Error> {
             let client = build_client(&addr).await?;
             let mut encountered_topics = HashSet::new();
 
-            let mut sub = client.subscribe_bytes(&topic).await?;
+            let mut sub = client.subscribe_bytes(topic).await?;
             while let Some(PubMsg { topic, .. }) = sub.recv().await {
                 if !encountered_topics.contains(&topic) {
                     println!("{topic}");
@@ -234,13 +238,13 @@ async fn run() -> Result<(), Error> {
         }
         Commands::Pub { addr, topic, value } => {
             let client = build_client(&addr).await?;
-            let payload = if topic.starts_with("f32/") {
+            let payload = if topic.protocol() == F32Protocol::prefix() {
                 t2_bus::transport::cbor_codec::ser(&F32Protocol(value.parse().unwrap()))?
             } else {
                 t2_bus::transport::cbor_codec::ser(&StringProtocol(value.parse().unwrap()))?
             };
 
-            client.publish_bytes(&topic, payload).await?;
+            client.publish_bytes(topic, payload).await?;
         }
         Commands::Register {
             name,
