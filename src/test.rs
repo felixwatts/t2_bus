@@ -3,7 +3,7 @@ use crate::{
     client::Client,
     err::{BusError, BusResult},
     prelude::ServerBuilder,
-    protocol::KEEP_ALIVE_TIMEOUT_S,
+    protocol::{KEEP_ALIVE_TIMEOUT_S, REQUEST_TIMEOUT_S},
     stopper::Stopper,
     topic::{Path, Topic},
 };
@@ -233,6 +233,34 @@ async fn test_request_response() {
     assert_eq!("PONG", rsp_payload.0);
 
     let _ = tokio::try_join!(ping_task).unwrap();
+}
+
+#[tokio::test]
+async fn server_survives_timeout_of_answered_request() {
+    let (client_1, client_2, _stopper) = setup_local().await;
+
+    let mut rx = client_1.serve::<TestReq>(p("ping")).await.unwrap();
+    tokio::spawn(async move {
+        while let Some((_, req_id, _)) = rx.recv().await {
+            client_1
+                .respond::<TestReq>(req_id, &TestRsp("PONG".into()))
+                .await
+                .unwrap();
+        }
+    });
+
+    client_2
+        .request(p("ping"), &TestReq("PING".into()))
+        .await
+        .unwrap();
+
+    tokio::time::sleep(Duration::from_secs(REQUEST_TIMEOUT_S + 1)).await;
+
+    let rsp = client_2
+        .request(p("ping"), &TestReq("PING".into()))
+        .await
+        .unwrap();
+    assert_eq!("PONG", rsp.0);
 }
 
 #[tokio::test]
