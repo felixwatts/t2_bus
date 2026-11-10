@@ -1,6 +1,6 @@
 [package]
 name = "t2_bus"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Felix Watts <felixwatts@gmail.com>"]
 edition = "2018"
 keywords = ["message", "bus", "pubsub", "reqrsp", "microservice"]

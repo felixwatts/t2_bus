@@ -1,3 +1,8 @@
+# 0.4.0
+
+- Fix: A successfully answered request no longer stops the server `REQUEST_TIMEOUT_S` (30s) later. Previously the request's timeout fired anyway, failed with `InvalidRequestId`, and the error stopped the bus, disconnecting every client.
+- Change: A request's timeout timer is now cancelled when the request is answered or either client disconnects, rather than sleeping for the full timeout period.
+
 # 0.3.0
 
 - Change (breaking): Split topics into two types. `Path` is a path without a protocol (`a/b/c`, or `""` for the root). `Topic` is a protocol plus a `Path`, with string form `<protocol>:<path>` (e.g. `f32:a/b/c`). Both are exported from the prelude.
