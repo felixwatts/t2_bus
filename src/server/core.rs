@@ -8,6 +8,7 @@ use crate::stopper::BasicStopper;
 use log::{debug, info, log_enabled, trace, warn, Level};
 use std::collections::HashMap;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::task::AbortHandle;
 use tokio::time::Duration;
 
 pub(crate) type ClientId = u32;
@@ -16,6 +17,17 @@ struct PendingResponse {
     request_id: MsgId,
     responder_id: ClientId,
     requester_id: ClientId,
+    _timeout: TimeoutTimer,
+}
+
+/// Cancels the request's timeout timer when dropped, so that answered requests
+/// do not leave a sleeping task behind for the rest of the timeout period.
+struct TimeoutTimer(AbortHandle);
+
+impl Drop for TimeoutTimer {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 pub(crate) struct Core {
@@ -97,13 +109,20 @@ impl Core {
             }
             Task::Message(client_id, msg) => self.process_msg(client_id, msg)?,
             Task::RequestTimeout(req_id) => {
-                let rsp = RspMsg {
-                    req_id,
-                    status: RspMsgStatus::Timeout,
-                    payload: vec![].into(),
-                };
+                // The timer may fire just before the request is answered or its
+                // requester disconnects, in which case it is no longer pending.
+                // That is not an error, and an error here would stop the server.
+                if self.pending_responses.contains_key(&req_id) {
+                    let rsp = RspMsg {
+                        req_id,
+                        status: RspMsgStatus::Timeout,
+                        payload: vec![].into(),
+                    };
 
-                self.respond(0, rsp)?;
+                    if let Err(e) = self.respond(0, rsp) {
+                        warn!("[B] Failed to deliver timeout for request {req_id}: {e:?}");
+                    }
+                }
 
                 false
             }
@@ -219,20 +238,21 @@ impl Core {
 
                 let msg_id = self.deliver(server_id, req)?;
 
-                let pending_response = PendingResponse {
-                    request_id: req_id,
-                    requester_id: client_id,
-                    responder_id: server_id,
-                };
-
-                self.pending_responses.insert(msg_id, pending_response);
-
                 let task_sender_clone = self.task_sender.clone();
-                tokio::spawn(async move {
+                let timer = tokio::spawn(async move {
                     tokio::time::sleep(Duration::from_secs(REQUEST_TIMEOUT_S)).await;
                     let task = Task::RequestTimeout(msg_id);
                     let _ = task_sender_clone.send(task);
                 });
+
+                let pending_response = PendingResponse {
+                    request_id: req_id,
+                    requester_id: client_id,
+                    responder_id: server_id,
+                    _timeout: TimeoutTimer(timer.abort_handle()),
+                };
+
+                self.pending_responses.insert(msg_id, pending_response);
 
                 Ok(())
             }
